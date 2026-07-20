@@ -448,7 +448,7 @@ return [
         [
             'text'    => 'Reportes',
             'icon'    => 'fas fa-pen-alt',
-            'can'     => 'sidebar.inventario',
+            'can'     => 'sidebar.reportes',
             'submenu' => [
                 [
                     'text' => 'Entradas / Salidas',
