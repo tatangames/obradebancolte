@@ -4300,6 +4300,7 @@ padding:5px 4px; background:#d9e1f2; text-align:center;";
     }
 
 
+
     public function vistaPDFReporteSobranteProyectoCerrado(Request $request)
     {
         $idproy        = $request->input('idproy');
@@ -4328,7 +4329,7 @@ padding:5px 4px; background:#d9e1f2; text-align:center;";
                 'orientation' => 'L',
             ]);
             $mpdf->WriteHTML("<p style='font-family:Arial; font-size:14px; color:red; padding:20px;'>
-        Este proyecto no tiene registro de cierre generado.</p>",
+    Este proyecto no tiene registro de cierre generado.</p>",
                 \Mpdf\HTMLParserMode::HTML_BODY
             );
             $mpdf->Output();
@@ -4347,7 +4348,7 @@ padding:5px 4px; background:#d9e1f2; text-align:center;";
                 'orientation' => 'L',
             ]);
             $mpdf->WriteHTML("<p style='font-family:Arial; font-size:14px; color:#888; padding:20px;'>
-        No hay materiales sobrantes registrados para este proyecto.</p>",
+    No hay materiales sobrantes registrados para este proyecto.</p>",
                 \Mpdf\HTMLParserMode::HTML_BODY
             );
             $mpdf->Output();
@@ -4382,11 +4383,12 @@ padding:5px 4px; background:#d9e1f2; text-align:center;";
 
             if (!isset($porCodigo[$codigo]['materiales'][$clave])) {
                 $porCodigo[$codigo]['materiales'][$clave] = [
-                    'nombre'   => $nombre,
-                    'medida'   => $medida,
-                    'cantidad' => 0,
-                    'precio'   => $precio,
-                    'subtotal' => 0,
+                    'id_material' => $idMaterial, // <-- NUEVO: se guarda el ID del material
+                    'nombre'      => $nombre,
+                    'medida'      => $medida,
+                    'cantidad'    => 0,
+                    'precio'      => $precio,
+                    'subtotal'    => 0,
                 ];
             }
 
@@ -4423,7 +4425,7 @@ padding:5px 4px; background:#d9e1f2; text-align:center;";
 
         // ── Estilos inline reutilizables ──────────────────────────────────
         $thStyle = "font-weight:bold; font-size:11px; border:0.8px solid #000;
-            padding:5px 4px; background:#d9e1f2; text-align:center;";
+        padding:5px 4px; background:#d9e1f2; text-align:center;";
         $tdStyle = "font-size:11px; border:0.8px solid #000; padding:4px;";
         $tdC     = $tdStyle . " text-align:center;";
         $tdR     = $tdStyle . " text-align:right;";
@@ -4432,65 +4434,65 @@ padding:5px 4px; background:#d9e1f2; text-align:center;";
         // ── Encabezado ────────────────────────────────────────────────────
         $html = "
 <table width='100%' style='border-collapse:collapse; font-family:Arial, sans-serif;'>
-    <tr>
-        <td style='width:25%; border:0.8px solid #000; padding:6px 8px;'>
-            <table width='100%'>
-                <tr>
-                    <td style='width:30%; text-align:left;'>
-                        <img src='{$logoalcaldia}' style='height:38px'>
-                    </td>
-                    <td style='width:70%; text-align:left; color:#104e8c;
-                               font-size:13px; font-weight:bold; line-height:1.3;'>
-                        SANTA ANA NORTE<br>EL SALVADOR
-                    </td>
-                </tr>
-            </table>
-        </td>
-        <td style='width:50%; border-top:0.8px solid #000; border-bottom:0.8px solid #000;
-                   padding:6px 8px; text-align:center; font-size:15px; font-weight:bold;'>
-            INFORME DE INVENTARIO FÍSICO<br>DE MATERIALES SOBRANTES
-        </td>
-        <td style='width:25%; border:0.8px solid #000; padding:0; vertical-align:top;'>
-            <table width='100%' style='font-size:10px;'>
-                <tr>
-                    <td width='40%' style='border-right:0.8px solid #000;
-                                           border-bottom:0.8px solid #000; padding:4px 6px;'>
-                        <strong>Código:</strong>
-                    </td>
-                    <td width='60%' style='border-bottom:0.8px solid #000;
-                                           padding:4px 6px; text-align:center;'>
-                        GEAD-001-INFO
-                    </td>
-                </tr>
-                <tr>
-                    <td style='border-right:0.8px solid #000;
-                               border-bottom:0.8px solid #000; padding:4px 6px;'>
-                        <strong>Versión:</strong>
-                    </td>
-                    <td style='border-bottom:0.8px solid #000;
-                               padding:4px 6px; text-align:center;'>000</td>
-                </tr>
-                <tr>
-                    <td style='border-right:0.8px solid #000; padding:4px 6px;'>
-                        <strong>Fecha de vigencia:</strong>
-                    </td>
-                    <td style='padding:4px 6px; text-align:center;'>22/05/2026</td>
-                </tr>
-            </table>
-        </td>
-    </tr>
+<tr>
+    <td style='width:25%; border:0.8px solid #000; padding:6px 8px;'>
+        <table width='100%'>
+            <tr>
+                <td style='width:30%; text-align:left;'>
+                    <img src='{$logoalcaldia}' style='height:38px'>
+                </td>
+                <td style='width:70%; text-align:left; color:#104e8c;
+                           font-size:13px; font-weight:bold; line-height:1.3;'>
+                    SANTA ANA NORTE<br>EL SALVADOR
+                </td>
+            </tr>
+        </table>
+    </td>
+    <td style='width:50%; border-top:0.8px solid #000; border-bottom:0.8px solid #000;
+               padding:6px 8px; text-align:center; font-size:15px; font-weight:bold;'>
+        INFORME DE INVENTARIO FÍSICO<br>DE MATERIALES SOBRANTES
+    </td>
+    <td style='width:25%; border:0.8px solid #000; padding:0; vertical-align:top;'>
+        <table width='100%' style='font-size:10px;'>
+            <tr>
+                <td width='40%' style='border-right:0.8px solid #000;
+                                       border-bottom:0.8px solid #000; padding:4px 6px;'>
+                    <strong>Código:</strong>
+                </td>
+                <td width='60%' style='border-bottom:0.8px solid #000;
+                                       padding:4px 6px; text-align:center;'>
+                    GEAD-001-INFO
+                </td>
+            </tr>
+            <tr>
+                <td style='border-right:0.8px solid #000;
+                           border-bottom:0.8px solid #000; padding:4px 6px;'>
+                    <strong>Versión:</strong>
+                </td>
+                <td style='border-bottom:0.8px solid #000;
+                           padding:4px 6px; text-align:center;'>000</td>
+            </tr>
+            <tr>
+                <td style='border-right:0.8px solid #000; padding:4px 6px;'>
+                    <strong>Fecha de vigencia:</strong>
+                </td>
+                <td style='padding:4px 6px; text-align:center;'>22/05/2026</td>
+            </tr>
+        </table>
+    </td>
+</tr>
 </table><br>";
 
         // ── Fecha ─────────────────────────────────────────────────────────
         $html .= "
 <table width='100%' style='border-collapse:collapse; margin-bottom:6px;'>
-    <tr>
-        <td style='width:70%;'></td>
-        <td style='width:15%; border:0.8px solid #000; padding:5px 8px;
-                   font-weight:bold; font-size:11px; text-align:center;'>FECHA</td>
-        <td style='width:15%; border:0.8px solid #000; padding:5px 8px;
-                   font-size:11px; text-align:center;'>{$fechaHoy}</td>
-    </tr>
+<tr>
+    <td style='width:70%;'></td>
+    <td style='width:15%; border:0.8px solid #000; padding:5px 8px;
+               font-weight:bold; font-size:11px; text-align:center;'>FECHA</td>
+    <td style='width:15%; border:0.8px solid #000; padding:5px 8px;
+               font-size:11px; text-align:center;'>{$fechaHoy}</td>
+</tr>
 </table>";
 
         // ── Datos del proyecto ────────────────────────────────────────────
@@ -4506,94 +4508,92 @@ padding:5px 4px; background:#d9e1f2; text-align:center;";
         $html .= "<table width='100%' style='border-collapse:collapse; margin-bottom:6px;'>";
         foreach ($campos as $label => $valor) {
             $html .= "
-    <tr>
-        <td style='width:25%; border:0.8px solid #ccc; padding:5px 8px;
-                   font-size:11px; font-weight:bold; background:#f5f5f5;'>
-            {$label}:
-        </td>
-        <td style='border:0.8px solid #ccc; padding:5px 8px; font-size:11px;'>
-            {$valor}
-        </td>
-    </tr>";
+<tr>
+    <td style='width:25%; border:0.8px solid #ccc; padding:5px 8px;
+               font-size:11px; font-weight:bold; background:#f5f5f5;'>
+        {$label}:
+    </td>
+    <td style='border:0.8px solid #ccc; padding:5px 8px; font-size:11px;'>
+        {$valor}
+    </td>
+</tr>";
         }
         $html .= "</table><br>";
 
         // ── Texto declaración ─────────────────────────────────────────────
         $html .= "
 <table width='100%' style='border-collapse:collapse; margin-bottom:10px;'>
-    <tr>
-        <td style='border:0.8px solid #000; padding:8px 10px; font-size:10px;
-                   text-align:justify; line-height:1.6;'>
-            POR MEDIO DEL PRESENTE LOS SUSCRITOS RESPONSABLES DE LA EJECUCIÓN Y SUPERVISIÓN DEL PROYECTO,
-            DECLARAMOS BAJO FE DE JURAMENTO QUE EL INVENTARIO FÍSICO DETALLADO HA SIDO VERIFICADO Y
-            CONFRONTADO CON LOS REGISTROS Y LA LIQUIDACIÓN FINAL DEL PROYECTO. CERTIFICAMOS QUE LAS
-            CANTIDADES AQUÍ EXPRESADAS SON LAS SOBRANTES REALES DEL PROYECTO Y QUE LA VALORACIÓN MONETARIA
-            SE HA DETERMINADO CON BASE EN LAS ORDENES DE COMPRA Y/O CONTRATOS. AUTORIZAMOS EL USO DE ESTE
-            DOCUMENTO COMO SOPORTE PARA EL INGRESO DE ESTOS MATERIALES SOBRANTES A LA BODEGA DE PROYECTOS
-            O A LA QUE DESIGNE EL CONCEJO MUNICIPAL Y SU CORRESPONDIENTES REGISTROS CONTABLES.
-        </td>
-    </tr>
+<tr>
+    <td style='border:0.8px solid #000; padding:8px 10px; font-size:10px;
+               text-align:justify; line-height:1.6;'>
+        POR MEDIO DEL PRESENTE LOS SUSCRITOS RESPONSABLES DE LA EJECUCIÓN Y SUPERVISIÓN DEL PROYECTO,
+        DECLARAMOS BAJO FE DE JURAMENTO QUE EL INVENTARIO FÍSICO DETALLADO HA SIDO VERIFICADO Y
+        CONFRONTADO CON LOS REGISTROS Y LA LIQUIDACIÓN FINAL DEL PROYECTO. CERTIFICAMOS QUE LAS
+        CANTIDADES AQUÍ EXPRESADAS SON LAS SOBRANTES REALES DEL PROYECTO Y QUE LA VALORACIÓN MONETARIA
+        SE HA DETERMINADO CON BASE EN LAS ORDENES DE COMPRA Y/O CONTRATOS. AUTORIZAMOS EL USO DE ESTE
+        DOCUMENTO COMO SOPORTE PARA EL INGRESO DE ESTOS MATERIALES SOBRANTES A LA BODEGA DE PROYECTOS
+        O A LA QUE DESIGNE EL CONCEJO MUNICIPAL Y SU CORRESPONDIENTES REGISTROS CONTABLES.
+    </td>
+</tr>
 </table>";
 
         // ── Tabla de materiales agrupados por código ──────────────────────
         $html .= "
 <table width='100%' style='border-collapse:collapse;'>
-    <thead>
-        <tr>
-            <th style='{$thStyle} width:5%;'>No.</th>
-            <th style='{$thStyle} width:10%;'>COD PRESUP.</th>
-            <th style='{$thStyle} width:38%;'>DESCRIPCIÓN</th>
-            <th style='{$thStyle} width:12%;'>U. DE MEDIDA</th>
-            <th style='{$thStyle} width:10%;'>CANTIDAD</th>
-            <th style='{$thStyle} width:12%;'>PRECIO UNITARIO</th>
-            <th style='{$thStyle} width:13%;'>SUBTOTAL</th>
-        </tr>
-    </thead>
-    <tbody>";
+<thead>
+    <tr>
+        <th style='{$thStyle} width:5%;'>ID</th>
+        <th style='{$thStyle} width:10%;'>COD PRESUP.</th>
+        <th style='{$thStyle} width:38%;'>DESCRIPCIÓN</th>
+        <th style='{$thStyle} width:12%;'>U. DE MEDIDA</th>
+        <th style='{$thStyle} width:10%;'>CANTIDAD</th>
+        <th style='{$thStyle} width:12%;'>PRECIO UNITARIO</th>
+        <th style='{$thStyle} width:13%;'>SUBTOTAL</th>
+    </tr>
+</thead>
+<tbody>";
 
-        $i = 1;
         foreach ($porCodigo as $grupo) {
             foreach ($grupo['materiales'] as $mat) {
                 $html .= "
-        <tr>
-            <td style='{$tdC}'>{$i}</td>
-            <td style='{$tdC}'>" . e($grupo['codigo']) . "</td>
-            <td style='{$tdL}'>" . e($mat['nombre']) . "</td>
-            <td style='{$tdC}'>" . e($mat['medida']) . "</td>
-            <td style='{$tdC} font-weight:bold;'>" . number_format($mat['cantidad']) . "</td>
-            <td style='{$tdR}'>$ " . number_format($mat['precio'], 4) . "</td>
-            <td style='{$tdR}'>$ " . number_format($mat['subtotal'], 4) . "</td>
-        </tr>";
-                $i++;
+    <tr>
+        <td style='{$tdC}'>" . e($mat['id_material']) . "</td>
+        <td style='{$tdC}'>" . e($grupo['codigo']) . "</td>
+        <td style='{$tdL}'>" . e($mat['nombre']) . "</td>
+        <td style='{$tdC}'>" . e($mat['medida']) . "</td>
+        <td style='{$tdC} font-weight:bold;'>" . number_format($mat['cantidad']) . "</td>
+        <td style='{$tdR}'>$ " . number_format($mat['precio'], 4) . "</td>
+        <td style='{$tdR}'>$ " . number_format($mat['subtotal'], 4) . "</td>
+    </tr>";
             }
 
             // Subtotal por código
             $html .= "
-        <tr>
-            <td colspan='6' style='font-weight:bold; font-size:11px; text-align:center;
-                                    border:0.8px solid #000; padding:5px 4px; background:#f2f4f8;'>
-                SUBTOTAL [" . e($grupo['codigo']) . "]
-            </td>
-            <td style='font-weight:bold; font-size:11px; text-align:right;
-                        border:0.8px solid #000; padding:5px 4px; background:#f2f4f8;'>
-                $ " . number_format($grupo['subtotal'], 4) . "
-            </td>
-        </tr>";
+    <tr>
+        <td colspan='6' style='font-weight:bold; font-size:11px; text-align:center;
+                                border:0.8px solid #000; padding:5px 4px; background:#f2f4f8;'>
+            SUBTOTAL [" . e($grupo['codigo']) . "]
+        </td>
+        <td style='font-weight:bold; font-size:11px; text-align:right;
+                    border:0.8px solid #000; padding:5px 4px; background:#f2f4f8;'>
+            $ " . number_format($grupo['subtotal'], 4) . "
+        </td>
+    </tr>";
         }
 
         // Total general
         $html .= "
-        <tr>
-            <td colspan='6' style='font-weight:bold; font-size:12px; text-align:center;
-                                    border:0.8px solid #000; padding:6px 4px; background:#d9e1f2;'>
-                TOTAL GENERAL
-            </td>
-            <td style='font-weight:bold; font-size:12px; text-align:right;
-                        border:0.8px solid #000; padding:6px 4px; background:#d9e1f2;'>
-                $ " . number_format($granTotal, 4) . "
-            </td>
-        </tr>
-    </tbody>
+    <tr>
+        <td colspan='6' style='font-weight:bold; font-size:12px; text-align:center;
+                                border:0.8px solid #000; padding:6px 4px; background:#d9e1f2;'>
+            TOTAL GENERAL
+        </td>
+        <td style='font-weight:bold; font-size:12px; text-align:right;
+                    border:0.8px solid #000; padding:6px 4px; background:#d9e1f2;'>
+            $ " . number_format($granTotal, 4) . "
+        </td>
+    </tr>
+</tbody>
 </table>";
 
         // ── Observaciones ─────────────────────────────────────────────────
@@ -4602,14 +4602,14 @@ padding:5px 4px; background:#d9e1f2; text-align:center;";
 <table width='100%' border='1' cellspacing='0' cellpadding='6'
        style='border-collapse:collapse; font-size:11px;
               margin-top:" . ($informacionGeneral->px_observaciones ?? 0) . "px;'>
-    <tr style='background:#f2f4f8;'>
-        <td style='font-weight:bold; font-size:12px;'>Observaciones:</td>
-    </tr>
-    <tr>
-        <td style='height:50px; font-size:11px; vertical-align:top;'>
-            " . e($observaciones) . "
-        </td>
-    </tr>
+<tr style='background:#f2f4f8;'>
+    <td style='font-weight:bold; font-size:12px;'>Observaciones:</td>
+</tr>
+<tr>
+    <td style='height:50px; font-size:11px; vertical-align:top;'>
+        " . e($observaciones) . "
+    </td>
+</tr>
 </table>";
 
         // ── Firmas ────────────────────────────────────────────────────────
@@ -4617,95 +4617,94 @@ padding:5px 4px; background:#d9e1f2; text-align:center;";
 <table width='100%' style='border-collapse:collapse; font-family:Arial,sans-serif;
                             margin-top:" . ($informacionGeneral->px_firmas ?? 0) . "px;
                             font-size:23px; line-height:1.6;'>
-    <tr>
-        <td style='width:50%; padding-right:40px; vertical-align:top;'>
-            <strong style='font-size:24px;'>ELABORADO POR:</strong><br><br>
-            <table width='100%' style='border-collapse:collapse;'>
-                <tr>
-                    <td style='width:15%; padding-bottom:12px;'>FIRMA:</td>
-                    <td style='border-bottom:0.8px solid #000; width:85%;'>&nbsp;</td>
-                </tr>
-                <tr><td colspan='2' style='height:40px;'></td></tr>
-                <tr>
-                    <td style='padding-bottom:12px;'>NOMBRE:</td>
-                    <td style='border-bottom:0.8px solid #000;'>&nbsp;</td>
-                </tr>
-                <tr><td colspan='2' style='height:40px;'></td></tr>
-                <tr>
-                    <td style='padding-bottom:12px;'>CARGO:</td>
-                    <td style='border-bottom:0.8px solid #000;'>&nbsp;</td>
-                </tr>
-                <tr><td colspan='2' style='height:40px;'></td></tr>
-                <tr>
-                    <td colspan='2' style='text-align:center; font-size:20px; line-height:1.5;'>
-                        $informacionGeneral->c_nombre1
-                    </td>
-                </tr>
-            </table>
-        </td>
-        <td style='width:50%; padding-left:40px; vertical-align:top;'>
-            <strong style='font-size:24px;'>REVISADO POR:</strong><br><br>
-            <table width='100%' style='border-collapse:collapse;'>
-                <tr>
-                    <td style='width:15%; padding-bottom:12px;'>FIRMA:</td>
-                    <td style='border-bottom:0.8px solid #000; width:85%;'>&nbsp;</td>
-                </tr>
-                <tr><td colspan='2' style='height:40px;'></td></tr>
-                <tr>
-                    <td style='padding-bottom:12px;'>NOMBRE:</td>
-                    <td style='border-bottom:0.8px solid #000;'>&nbsp;</td>
-                </tr>
-                <tr><td colspan='2' style='height:40px;'></td></tr>
-                <tr>
-                    <td style='padding-bottom:12px;'>CARGO:</td>
-                    <td style='border-bottom:0.8px solid #000;'>&nbsp;</td>
-                </tr>
-                <tr><td colspan='2' style='height:40px;'></td></tr>
-                <tr>
-                    <td colspan='2' style='text-align:center; font-size:20px; line-height:1.5;'>
-                        $informacionGeneral->c_nombre2
-                    </td>
-                </tr>
-            </table>
-        </td>
-    </tr>
+<tr>
+    <td style='width:50%; padding-right:40px; vertical-align:top;'>
+        <strong style='font-size:24px;'>ELABORADO POR:</strong><br><br>
+        <table width='100%' style='border-collapse:collapse;'>
+            <tr>
+                <td style='width:15%; padding-bottom:12px;'>FIRMA:</td>
+                <td style='border-bottom:0.8px solid #000; width:85%;'>&nbsp;</td>
+            </tr>
+            <tr><td colspan='2' style='height:40px;'></td></tr>
+            <tr>
+                <td style='padding-bottom:12px;'>NOMBRE:</td>
+                <td style='border-bottom:0.8px solid #000;'>&nbsp;</td>
+            </tr>
+            <tr><td colspan='2' style='height:40px;'></td></tr>
+            <tr>
+                <td style='padding-bottom:12px;'>CARGO:</td>
+                <td style='border-bottom:0.8px solid #000;'>&nbsp;</td>
+            </tr>
+            <tr><td colspan='2' style='height:40px;'></td></tr>
+            <tr>
+                <td colspan='2' style='text-align:center; font-size:20px; line-height:1.5;'>
+                    $informacionGeneral->c_nombre1
+                </td>
+            </tr>
+        </table>
+    </td>
+    <td style='width:50%; padding-left:40px; vertical-align:top;'>
+        <strong style='font-size:24px;'>REVISADO POR:</strong><br><br>
+        <table width='100%' style='border-collapse:collapse;'>
+            <tr>
+                <td style='width:15%; padding-bottom:12px;'>FIRMA:</td>
+                <td style='border-bottom:0.8px solid #000; width:85%;'>&nbsp;</td>
+            </tr>
+            <tr><td colspan='2' style='height:40px;'></td></tr>
+            <tr>
+                <td style='padding-bottom:12px;'>NOMBRE:</td>
+                <td style='border-bottom:0.8px solid #000;'>&nbsp;</td>
+            </tr>
+            <tr><td colspan='2' style='height:40px;'></td></tr>
+            <tr>
+                <td style='padding-bottom:12px;'>CARGO:</td>
+                <td style='border-bottom:0.8px solid #000;'>&nbsp;</td>
+            </tr>
+            <tr><td colspan='2' style='height:40px;'></td></tr>
+            <tr>
+                <td colspan='2' style='text-align:center; font-size:20px; line-height:1.5;'>
+                    $informacionGeneral->c_nombre2
+                </td>
+            </tr>
+        </table>
+    </td>
+</tr>
 
-    <tr><td colspan='2' style='height:70px;'></td></tr>
+<tr><td colspan='2' style='height:70px;'></td></tr>
 
-    <tr>
-        <td colspan='2' style='vertical-align:top;'>
-            <strong style='font-size:24px;'>ES CONFORME:</strong><br><br>
-            <table width='50%' style='border-collapse:collapse; margin:0 auto;'>
-                <tr>
-                    <td style='width:15%; padding-bottom:12px;'>FIRMA:</td>
-                    <td style='border-bottom:0.8px solid #000; width:85%;'>&nbsp;</td>
-                </tr>
-                <tr><td colspan='2' style='height:40px;'></td></tr>
-                <tr>
-                    <td style='padding-bottom:12px;'>NOMBRE:</td>
-                    <td style='border-bottom:0.8px solid #000;'>&nbsp;</td>
-                </tr>
-                <tr><td colspan='2' style='height:40px;'></td></tr>
-                <tr>
-                    <td style='padding-bottom:12px;'>CARGO:</td>
-                    <td style='border-bottom:0.8px solid #000;'>&nbsp;</td>
-                </tr>
-                <tr><td colspan='2' style='height:40px;'></td></tr>
-                <tr>
-                    <td colspan='2' style='text-align:center; font-size:20px; line-height:1.5;'>
-                        $informacionGeneral->c_nombre3
-                    </td>
-                </tr>
-            </table>
-        </td>
-    </tr>
+<tr>
+    <td colspan='2' style='vertical-align:top;'>
+        <strong style='font-size:24px;'>ES CONFORME:</strong><br><br>
+        <table width='50%' style='border-collapse:collapse; margin:0 auto;'>
+            <tr>
+                <td style='width:15%; padding-bottom:12px;'>FIRMA:</td>
+                <td style='border-bottom:0.8px solid #000; width:85%;'>&nbsp;</td>
+            </tr>
+            <tr><td colspan='2' style='height:40px;'></td></tr>
+            <tr>
+                <td style='padding-bottom:12px;'>NOMBRE:</td>
+                <td style='border-bottom:0.8px solid #000;'>&nbsp;</td>
+            </tr>
+            <tr><td colspan='2' style='height:40px;'></td></tr>
+            <tr>
+                <td style='padding-bottom:12px;'>CARGO:</td>
+                <td style='border-bottom:0.8px solid #000;'>&nbsp;</td>
+            </tr>
+            <tr><td colspan='2' style='height:40px;'></td></tr>
+            <tr>
+                <td colspan='2' style='text-align:center; font-size:20px; line-height:1.5;'>
+                    $informacionGeneral->c_nombre3
+                </td>
+            </tr>
+        </table>
+    </td>
+</tr>
 </table>";
 
         $mpdf->setFooter("Página {PAGENO} de {nb}");
         $mpdf->WriteHTML($html, \Mpdf\HTMLParserMode::HTML_BODY);
         $mpdf->Output();
     }
-
 
 
 
