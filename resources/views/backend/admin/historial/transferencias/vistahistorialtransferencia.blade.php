@@ -205,6 +205,82 @@
         </div>
     </div>
 
+    {{-- ══ Modal Uso del Material ══ --}}
+    <div class="modal fade" id="modalUso" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-lg" role="document">
+            <div class="modal-content">
+                <div class="modal-header bg-warning">
+                    <h5 class="modal-title">
+                        <i class="fas fa-search-dollar mr-2"></i>
+                        ¿A dónde fue el material? — <span id="uso-proyecto"></span>
+                    </h5>
+                    <button type="button" class="close" data-dismiss="modal">
+                        <span>&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <div id="uso-loading" class="text-center py-4">
+                        <i class="fas fa-spinner fa-spin fa-2x"></i>
+                    </div>
+                    <div id="uso-contenido" style="display:none;">
+                        <table class="table table-bordered table-sm">
+                            <thead class="thead-dark">
+                            <tr>
+                                <th>Material</th>
+                                <th class="text-center">Cantidad</th>
+                                <th>Ficha</th>
+                                <th>Talonario</th>
+                                <th>Fecha</th>
+                            </tr>
+                            </thead>
+                            <tbody id="uso-tbody"></tbody>
+                        </table>
+                        <div id="uso-reservas-alerta" class="alert alert-info" style="display:none;">
+                            <i class="fas fa-bookmark mr-1"></i>
+                            Además tiene <b id="uso-reservas-count"></b> reserva(s) activa(s) sobre este material.
+                        </div>
+
+                        <hr>
+                        <h6 class="font-weight-bold">
+                            <i class="fas fa-undo mr-1"></i>
+                            Disponible para devolver a <span id="uso-proyecto-origen" class="text-primary"></span>
+                        </h6>
+                        <table class="table table-bordered table-sm" id="uso-tabla-disponible">
+                            <thead class="thead-light">
+                            <tr>
+                                <th>Material</th>
+                                <th class="text-center">Transferido</th>
+                                <th class="text-center">Usado</th>
+                                <th class="text-center">Reservado</th>
+                                <th class="text-center">Disponible</th>
+                                <th class="text-center" style="width:140px;">Cantidad a devolver</th>
+                            </tr>
+                            </thead>
+                            <tbody id="uso-disponible-tbody"></tbody>
+                        </table>
+                        <div id="uso-disponible-vacio" class="text-muted mb-2" style="display:none;">
+                            <i class="fas fa-info-circle mr-1"></i>
+                            No queda material disponible para devolver — todo fue usado o reservado.
+                        </div>
+                        <small class="text-muted d-block mb-2">
+                            Escribe la cantidad que deseas devolver en cada fila (puede ser parcial).
+                            No puede superar el valor de "Disponible".
+                        </small>
+                        <button type="button" class="btn btn-success btn-sm" id="btn-devolver" style="display:none;">
+                            <i class="fas fa-undo mr-1"></i> Devolver al proyecto de origen
+                        </button>
+                    </div>
+                    <div id="uso-vacio" class="text-center text-muted py-4" style="display:none;">
+                        <i class="fas fa-check-circle fa-2x mb-2 text-success"></i>
+                        <p>Este material no ha sido usado ni reservado todavía. Se puede eliminar sin problema.</p>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
 @stop
 
@@ -428,8 +504,6 @@
                 });
         }
 
-
-
         // ── Eliminar ──────────────────────────────────────────────
         function eliminar(id) {
             Swal.fire({
@@ -486,5 +560,255 @@
                 }
             });
         }
+
+        // ── Ver Uso del Material ────────────────────────────────────
+        let usoTransferenciaId = null; // id de la transferencia abierta actualmente en el modal
+
+        function verUso(id, proyecto) {
+            usoTransferenciaId = id;
+
+            $('#uso-proyecto').text(proyecto);
+            $('#uso-tbody').html('');
+            $('#uso-contenido').hide();
+            $('#uso-vacio').hide();
+            $('#uso-reservas-alerta').hide();
+            $('#uso-disponible-tbody').html('');
+            $('#uso-tabla-disponible').show();
+            $('#uso-disponible-vacio').hide();
+            $('#btn-devolver').hide();
+            $('#uso-loading').show();
+
+            $('#modalUso').modal('show');
+
+            cargarUso(id, proyecto);
+        }
+
+        function cargarUso(id, proyecto) {
+            axios.post(urlAdmin + '/admin/historial/transferencias/uso', { id: id })
+                .then((response) => {
+                    $('#uso-loading').hide();
+
+                    const usos = response.data.usos || [];
+                    const reservas = response.data.reservas_activas || 0;
+                    const materiales = response.data.materiales || [];
+
+                    if (usos.length === 0 && reservas === 0 && materiales.length === 0) {
+                        $('#uso-vacio').show();
+                        $('#uso-contenido').hide();
+                        return;
+                    }
+
+                    // ── Tabla de despachos ya hechos ──────────────
+                    let html = '';
+                    usos.forEach((fila) => {
+                        html += `
+                <tr>
+                    <td>${fila.material}</td>
+                    <td class="text-center">${fila.cantidad}</td>
+                    <td>${fila.ficha}</td>
+                    <td>${fila.talonario}</td>
+                    <td>${fila.fecha}</td>
+                </tr>`;
+                    });
+
+                    $('#uso-tbody').html(html);
+
+                    if (reservas > 0) {
+                        $('#uso-reservas-count').text(reservas);
+                        $('#uso-reservas-alerta').show();
+                    } else {
+                        $('#uso-reservas-alerta').hide();
+                    }
+
+                    // ── Resumen de disponible para devolver ───────
+                    $('#uso-proyecto-origen').text(response.data.nombre_proyecto_origen || '—');
+
+                    if (materiales.length === 0) {
+                        $('#uso-tabla-disponible').hide();
+                        $('#uso-disponible-vacio').show();
+                        $('#btn-devolver').hide();
+                    } else {
+                        let htmlMat = '';
+                        materiales.forEach((m) => {
+                            // Verificación: disponible = transferido - usado - reservado (calculado en backend)
+                            const disponible = parseFloat(m.disponible) || 0;
+                            // Requerido para el envío al backend. Se aceptan varios nombres
+                            // por si el endpoint /uso lo devuelve con otra llave.
+                            const idMaterial = m.id_material ?? m.material_id ?? m.id ?? '';
+
+                            htmlMat += `
+                    <tr data-id-material="${idMaterial}" data-disponible="${disponible}">
+                        <td>${m.material}</td>
+                        <td class="text-center">${m.cantidad_original}</td>
+                        <td class="text-center">${m.cantidad_usada}</td>
+                        <td class="text-center">${m.cantidad_reservada}</td>
+                        <td class="text-center font-weight-bold text-success">${disponible}</td>
+                        <td class="text-center">
+                            <input type="number"
+                                   class="form-control form-control-sm input-cantidad-devolver"
+                                   min="0"
+                                   max="${disponible}"
+                                   step="1"
+                                   placeholder="0"
+                                   ${disponible <= 0 ? 'disabled' : ''}>
+                        </td>
+                    </tr>`;
+                        });
+                        $('#uso-disponible-tbody').html(htmlMat);
+                        $('#uso-tabla-disponible').show();
+                        $('#uso-disponible-vacio').hide();
+                        $('#btn-devolver').show();
+                    }
+
+                    $('#uso-contenido').show();
+                })
+                .catch((error) => {
+                    $('#uso-loading').hide();
+                    $('#uso-vacio').show();
+                    console.error(error);
+                    toastr.error('Error al consultar el uso del material');
+                });
+        }
+
+        // Valida en vivo que la cantidad escrita no supere el disponible de la fila
+        $(document).on('input', '.input-cantidad-devolver', function () {
+            const $input = $(this);
+            const $row = $input.closest('tr');
+            const disponible = parseFloat($row.data('disponible')) || 0;
+            let valor = parseFloat($input.val());
+
+            if (isNaN(valor) || valor < 0) {
+                $input.removeClass('is-invalid');
+                return;
+            }
+
+            if (valor > disponible) {
+                $input.val(disponible);
+                toastr.warning('No puede devolver más de lo disponible (' + disponible + ')');
+            }
+        });
+
+        // ── Devolver material al proyecto de origen ─────────────────
+        $(document).on('click', '#btn-devolver', function () {
+            if (!usoTransferenciaId) {
+                toastr.error('No se identificó la transferencia.');
+                return;
+            }
+
+            const items = [];
+            let huboError = false;
+
+            let faltaIdMaterial = false;
+
+            $('#uso-disponible-tbody tr').each(function () {
+                const $row = $(this);
+                const idMaterialRaw = $row.data('id-material');
+                const idMaterial = parseInt(idMaterialRaw, 10);
+                const disponible = parseFloat($row.data('disponible')) || 0;
+                const cantidad = parseFloat($row.find('.input-cantidad-devolver').val());
+
+                if (!cantidad || cantidad <= 0) {
+                    return; // fila sin cantidad a devolver, se omite
+                }
+
+                if (isNaN(idMaterial)) {
+                    faltaIdMaterial = true;
+                    return;
+                }
+
+                if (cantidad > disponible) {
+                    huboError = true;
+                    return;
+                }
+
+                items.push({
+                    id_material: idMaterial,
+                    cantidad: cantidad
+                });
+            });
+
+            if (faltaIdMaterial) {
+                toastr.error('No se pudo identificar el material (falta id_material desde el servidor). Revisa el endpoint /uso.');
+                return;
+            }
+
+            if (huboError) {
+                toastr.error('Hay una cantidad que supera lo disponible. Corrígela antes de continuar.');
+                return;
+            }
+
+            if (items.length === 0) {
+                toastr.warning('Ingresa al menos una cantidad a devolver.');
+                return;
+            }
+
+            Swal.fire({
+                title: '¿Confirmar devolución?',
+                text: 'Se devolverá el material seleccionado al proyecto de origen.',
+                type: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#28a745',
+                cancelButtonColor: '#6c757d',
+                confirmButtonText: 'Sí, devolver',
+                cancelButtonText: 'Cancelar'
+            }).then((result) => {
+                if (!result.value) return;
+
+                openLoading();
+                axios.post(urlAdmin + '/admin/historial/transferencias/devolver', {
+                    id: usoTransferenciaId,
+                    items: items
+                })
+                    .then((response) => {
+                        closeLoading();
+
+                        switch (response.data.success) {
+                            case 1:
+                                toastr.success('Material devuelto correctamente al proyecto de origen');
+                                // Refrescar el detalle de uso/disponible dentro del modal
+                                $('#uso-loading').show();
+                                $('#uso-contenido').hide();
+                                cargarUso(usoTransferenciaId, $('#uso-proyecto').text());
+                                // Refrescar el listado principal
+                                if (typeof recargar === 'function') recargar();
+                                break;
+
+                            case 2:
+                                toastr.error(response.data.msg || 'No se encontró el material solicitado en el destino.');
+                                break;
+
+                            case 3:
+                                Swal.fire({
+                                    title: 'Cantidad no disponible',
+                                    html: 'La cantidad a devolver de <b>' +
+                                        (response.data.nombre_material || '—') +
+                                        '</b> supera lo disponible (' +
+                                        (response.data.disponible ?? '—') + ').',
+                                    type: 'warning',
+                                    confirmButtonText: 'Entendido'
+                                });
+                                // Refrescar por si el disponible cambió entre tanto
+                                cargarUso(usoTransferenciaId, $('#uso-proyecto').text());
+                                break;
+
+                            case 0:
+                                toastr.error(response.data.msg || 'Datos inválidos.');
+                                break;
+
+                            case 99:
+                                toastr.error('Ocurrió un error al procesar la devolución. Intente nuevamente.');
+                                break;
+
+                            default:
+                                toastr.error('Error al devolver el material.');
+                        }
+                    })
+                    .catch((error) => {
+                        closeLoading();
+                        console.error(error);
+                        toastr.error('Error al devolver el material.');
+                    });
+            });
+        });
     </script>
 @endsection

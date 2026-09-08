@@ -20,5 +20,9 @@ class TipoProyecto extends Model
         return $this->hasMany(Transferencia::class, 'id_tipoproyecto');
     }
 
+    public function entradas()
+    {
+        return $this->hasMany(Entradas::class, 'id_tipoproyecto');
+    }
 
 }

@@ -1288,5 +1288,242 @@ class HistorialController extends Controller
 
 
 
+    public function detalleUsoTransferencia(Request $request)
+    {
+        $transferencia = Transferencia::find($request->id);
+
+        if (!$transferencia) {
+            return response()->json(['success' => 0]);
+        }
+
+        if (!$transferencia->id_entrada) {
+            return response()->json(['success' => 1, 'usos' => [], 'materiales' => []]);
+        }
+
+        $detallesEntrada = EntradasDetalle::where('id_entradas', $transferencia->id_entrada)->get();
+        $idsDetalleEntrada = $detallesEntrada->pluck('id');
+
+        // Despachos individuales ya hechos desde bodega de sobrantes (a quién se le dio, con ficha)
+        $usos = SalidasDetalle::whereIn('id_entrada_detalle', $idsDetalleEntrada)
+            ->with('salida')
+            ->get()
+            ->map(function ($sd) use ($detallesEntrada) {
+                $entDet = $detallesEntrada->firstWhere('id', $sd->id_entrada_detalle);
+                $salida = $sd->salida;
+
+                return [
+                    'material'  => $entDet->nombre ?? '—',
+                    'cantidad'  => $sd->cantidad_salida,
+                    'id_salida' => $sd->id_salida,
+                    'ficha'     => $salida->ficha_nombre ?? '—',
+                    'talonario' => $salida->ficha_talonario ?? '—',
+                    'fecha'     => $salida?->fecha ? date('d/m/Y', strtotime($salida->fecha)) : '—',
+                ];
+            });
+
+        // Resumen por fila (lote) de entrada: transferido / usado / reservado / disponible
+        $materiales = $detallesEntrada->map(function ($ed) {
+            $usado = SalidasDetalle::where('id_entrada_detalle', $ed->id)
+                ->sum('cantidad_salida');
+
+            $reservado = Reserva::where('id_entrada_detalle', $ed->id)
+                ->sum('cantidad');
+
+            $disponible = $ed->cantidad_inicial - $usado - $reservado;
+
+            return [
+                'id_entrada_detalle' => $ed->id,
+                'id_material'        => $ed->id_material,
+                'material'           => $ed->nombre,
+                'cantidad_original'  => $ed->cantidad_inicial,
+                'cantidad_usada'     => $usado,
+                'cantidad_reservada' => $reservado,
+                'disponible'         => max(0, $disponible),
+            ];
+        })
+            ->filter(fn ($m) => $m['disponible'] > 0)
+            ->groupBy('id_material')
+            ->map(function ($grupo) {
+                return [
+                    // se conservan los IDs de cada lote para poder devolver correctamente
+                    'id_material'         => $grupo->first()['id_material'], // <-- AGREGADO
+                    'ids_entrada_detalle' => $grupo->pluck('id_entrada_detalle')->all(),
+                    'material'            => $grupo->first()['material'],
+                    'cantidad_original'   => $grupo->sum('cantidad_original'),
+                    'cantidad_usada'      => $grupo->sum('cantidad_usada'),
+                    'cantidad_reservada'  => $grupo->sum('cantidad_reservada'),
+                    'disponible'          => $grupo->sum('disponible'),
+                ];
+            })
+            ->values();
+
+        $reservasActivas = Reserva::whereIn('id_entrada_detalle', $idsDetalleEntrada)->count();
+
+        return response()->json([
+            'success'                => 1,
+            'usos'                   => $usos,
+            'materiales'             => $materiales,
+            'reservas_activas'       => $reservasActivas,
+            'id_tipoproyecto_origen' => $transferencia->id_tipoproyecto_origen,
+            'nombre_proyecto_origen' => $transferencia->tipoproyectoOrigen->nombre ?? '—',
+        ]);
+    }
+
+
+
+    public function devolverMaterialTransferencia(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'id'                  => 'required|integer',
+            'items'               => 'required|array|min:1',
+            'items.*.id_material' => 'required|integer',
+            'items.*.cantidad'    => 'required|numeric|min:0.01',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => 0,
+                'msg'     => $validator->errors()->first(),
+            ]);
+        }
+
+        $transferencia = Transferencia::find($request->id);
+
+        if (!$transferencia || !$transferencia->id_entrada) {
+            return response()->json([
+                'success' => 0,
+                'msg'     => 'Esta transferencia no tiene material disponible para devolver.',
+            ]);
+        }
+
+        $idProyectoOrigen = $transferencia->id_tipoproyecto_origen;
+
+        if (!$idProyectoOrigen) {
+            return response()->json([
+                'success' => 0,
+                'msg'     => 'No se identificó el proyecto de origen de esta transferencia.',
+            ]);
+        }
+
+        DB::beginTransaction();
+
+        try {
+            // Entrada del proyecto DESTINO (a donde llegó el material transferido)
+            $entradaDestino = Entradas::find($transferencia->id_entrada);
+
+            if (!$entradaDestino) {
+                DB::rollback();
+                return response()->json(['success' => 0, 'msg' => 'No se encontró la entrada del proyecto destino.']);
+            }
+
+            // Cabecera de SALIDA en el destino: registra que el material salió de ahí
+            $salidaDestino = Salidas::create([
+                'id_tipoproyecto' => $entradaDestino->id_tipoproyecto,
+                'fecha'           => now()->toDateString(),
+                'descripcion'     => 'Devolución al proyecto de origen (transferencia #' . $transferencia->id . ')',
+            ]);
+
+            // Cabecera de ENTRADA en el ORIGEN: recibe de vuelta el material
+            $entradaOrigen = Entradas::create([
+                'id_tipoproyecto' => $idProyectoOrigen,
+                'fecha'           => now()->toDateString(),
+                'descripcion'     => 'Devolución de transferencia #' . $transferencia->id,
+            ]);
+
+            foreach ($request->items as $item) {
+
+                $idMaterial         = $item['id_material'];
+                $cantidadSolicitada = (float) $item['cantidad'];
+
+                if ($cantidadSolicitada <= 0) {
+                    continue;
+                }
+
+                // Lotes de ese material dentro de ESTA entrada (esta transferencia)
+                $lotes = EntradasDetalle::where('id_entradas', $entradaDestino->id)
+                    ->where('id_material', $idMaterial)
+                    ->orderBy('id')
+                    ->get();
+
+                if ($lotes->isEmpty()) {
+                    DB::rollback();
+                    return response()->json([
+                        'success' => 2,
+                        'msg'     => 'No se encontró el material solicitado en el destino.',
+                    ]);
+                }
+
+                // Recalcular disponible real por lote (server-side, no confiar en el front)
+                $disponiblePorLote = $lotes->map(function ($lote) {
+                    $usado = SalidasDetalle::where('id_entrada_detalle', $lote->id)->sum('cantidad_salida');
+                    $reservado = Reserva::where('id_entrada_detalle', $lote->id)->sum('cantidad');
+                    $disponible = $lote->cantidad_inicial - $usado - $reservado;
+
+                    return [
+                        'lote'       => $lote,
+                        'disponible' => max(0, $disponible),
+                    ];
+                });
+
+                $totalDisponible = $disponiblePorLote->sum('disponible');
+
+                // ── Validación clave: no permitir devolver más de lo disponible ──
+                if ($cantidadSolicitada > $totalDisponible) {
+                    DB::rollback();
+                    return response()->json([
+                        'success'         => 3,
+                        'nombre_material' => $lotes->first()->nombre,
+                        'disponible'      => $totalDisponible,
+                        'msg'             => 'La cantidad a devolver de "' . $lotes->first()->nombre .
+                            '" supera lo disponible (' . $totalDisponible . ').',
+                    ]);
+                }
+
+                // Consumir por lote (FIFO) hasta cubrir la cantidad pedida
+                $restante = $cantidadSolicitada;
+
+                foreach ($disponiblePorLote as $fila) {
+                    if ($restante <= 0) break;
+
+                    $lote           = $fila['lote'];
+                    $disponibleLote = $fila['disponible'];
+
+                    if ($disponibleLote <= 0) continue;
+
+                    $tomar = min($disponibleLote, $restante);
+
+                    // Sale del destino (reduce su disponible)
+                    SalidasDetalle::create([
+                        'id_salida'          => $salidaDestino->id,
+                        'id_entrada_detalle' => $lote->id,
+                        'cantidad_salida'    => $tomar,
+                    ]);
+
+                    // Entra al origen, con el mismo precio del lote
+                    EntradasDetalle::create([
+                        'id_entradas'      => $entradaOrigen->id,
+                        'id_material'      => $lote->id_material,
+                        'cantidad_inicial' => $tomar,
+                        'codigo'           => $lote->codigo,
+                        'precio'           => $lote->precio,
+                        'nombre'           => $lote->nombre,
+                    ]);
+
+                    $restante -= $tomar;
+                }
+            }
+
+            DB::commit();
+            return response()->json(['success' => 1]);
+
+        } catch (\Throwable $e) {
+            DB::rollback();
+            Log::error('devolverMaterialTransferencia: ' . $e->getMessage());
+            return response()->json(['success' => 99]);
+        }
+    }
+
+
+
 
 }

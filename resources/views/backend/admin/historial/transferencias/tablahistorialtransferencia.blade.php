@@ -67,15 +67,22 @@
                                             <i class="fas fa-list"></i> Detalle
                                         </button>
 
+                                        <button type="button"
+                                                class="btn btn-warning btn-xs"
+                                                style="margin: 3px"
+                                                onclick="verUso({{ $dato->id }}, '{{ addslashes($dato->nombre_origen) }}')">
+                                            <i class="fas fa-search-dollar"></i> Ver Uso
+                                        </button>
+
                                         {{-- Botón PDF — solo para transferencias normales (las de reserva no tienen datos del acta) --}}
                                         @if(! $dato->es_reserva)
                                             @if($dato->tipo_salida !== 'snapshot')
-                                            <a href="{{ url('admin/historial/transferencias/acta/pdf/' . $dato->id) }}"
-                                               target="_blank"
-                                               class="btn btn-secondary btn-xs"
-                                               style="margin: 3px">
-                                                <i class="fas fa-file-pdf"></i> PDF
-                                            </a>
+                                                <a href="{{ url('admin/historial/transferencias/acta/pdf/' . $dato->id) }}"
+                                                   target="_blank"
+                                                   class="btn btn-secondary btn-xs"
+                                                   style="margin: 3px">
+                                                    <i class="fas fa-file-pdf"></i> PDF
+                                                </a>
                                             @endif
                                         @endif
 

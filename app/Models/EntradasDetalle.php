@@ -11,13 +11,7 @@ class EntradasDetalle extends Model
     protected $table = 'entradas_detalle';
     public $timestamps = false;
 
-    protected $fillable = [
-        'id_entradas',
-        'id_material',
-        'cantidad_inicial',
-        'precio',
-        'codigo'
-    ];
+    protected $fillable = ['id_entradas', 'id_material', 'cantidad_inicial', 'precio', 'codigo', 'nombre'];
 
     public function material()
     {

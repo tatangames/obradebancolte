@@ -165,6 +165,18 @@ Route::middleware('auth:admin')->group(function () {
     Route::get('/admin/historial/transferencias/acta/pdf/{id}', [HistorialController::class, 'actaDesdeHistorial']);
 
 
+
+
+
+    Route::post('/admin/historial/transferencias/uso', [HistorialController::class, 'detalleUsoTransferencia']);
+
+
+    Route::post('/admin/historial/transferencias/devolver', [HistorialController::class, 'devolverMaterialTransferencia'])
+        ->name('admin.historial.transferencias.devolver');
+
+
+
+
     // --- REPORTES DE DIFERENTES FORMULARIOS ---
     Route::post('/admin/reporte/form/solicitud/preview',
         [ReportesController::class, 'formSolicitudPreview'])
@@ -239,6 +251,23 @@ Route::middleware('auth:admin')->group(function () {
     Route::post('/admin/reporte/talonario/salida', [ReportesController::class, 'pdfReporteSalidaTalonario']);
 
 
+
+
+
+    Route::get('/admin/reporte/cerrados/totalizado/pdf',
+        [ReportesController::class, 'reporteTotalizadoCerrados']);
+
+    Route::get('/admin/reporte/cerrados/totalizado-desglosado/pdf',
+        [ReportesController::class, 'reporteTotalizadoCerradosDesglosadoPrecio']);
+
+    Route::get('/admin/reporte/cerrados/consolidado/materiales/pdf',
+        [ReportesController::class, 'reporteConsolidadoMaterialesCerrados']);
+
+    Route::get('/admin/reporte/cerrado/conteo/pdf/{id}',
+        [ReportesController::class, 'reporteConteoFisicoCerrado']);
+
+    Route::get('/admin/reporte/cerrado/lote/pdf/{id}',
+        [ReportesController::class, 'reporteLoteCerrado']);
 
 
 

@@ -134,7 +134,7 @@
                         <div class="reporte-card">
                             <div class="reporte-header activo">
                                 <i class="fas fa-boxes"></i>
-                                <h5>Inventario Actual de Proyecto</h5>
+                                <h5>Inventario Actual de Proyecto - EN EJECUCIÓN</h5>
                             </div>
                             <div class="reporte-body">
                                 <p style="font-size:13px; color:#666; margin-bottom:14px;">
@@ -153,13 +153,336 @@
                                     @endforeach
                                 </select>
                                 <br>
+
+
+
                                 <button type="button" onclick="generarPdfActivo()" class="btn-pdf azul">
+                                    <img src="{{ asset('images/logopdf.png') }}" width="22px" height="22px">
+                                    Generar PDF
+                                </button>
+
+                                {{-- ✅ NUEVO: botón totalizado --}}
+                                <button type="button" onclick="generarPdfTotalizado()" class="btn-pdf"
+                                        style="background:linear-gradient(135deg,#1a4d5c,#117a8b);
+                             color:#fff; box-shadow:0 4px 14px rgba(17,122,139,.35); margin-left:8px;">
+                                    <img src="{{ asset('images/logopdf.png') }}" width="22px" height="22px">
+                                    Totalizado General
+                                </button>
+
+
+
+                                {{-- ✅ NUEVO: Totalizado General - Precio Unitario --}}
+                                <div style="margin-top:18px; border-top:2px dashed #e8eef8; padding-top:16px;">
+
+                                    {{-- Toggle conteo físico --}}
+                                    <div class="custom-control custom-switch" style="margin-bottom:10px;">
+                                        <input type="checkbox"
+                                               class="custom-control-input"
+                                               id="toggle-conteo-fisico-activo">
+                                        <label class="custom-control-label"
+                                               for="toggle-conteo-fisico-activo"
+                                               style="font-size:13px; font-weight:600; color:#555; cursor:pointer;">
+                                            Incluir columnas de Conteo Físico
+                                        </label>
+                                    </div>
+
+                                    <button type="button"
+                                            onclick="generarPdfTotalizadoPrecioActivo()"
+                                            class="btn-pdf"
+                                            style="background:linear-gradient(135deg,#1a4d5c,#117a8b);
+                       color:#fff; box-shadow:0 4px 14px rgba(17,122,139,.35);">
+                                        <img src="{{ asset('images/logopdf.png') }}" width="22px" height="22px">
+                                        Totalizado General - Precio Unitario
+                                    </button>
+                                </div>
+
+
+
+
+                            </div>
+                        </div>
+                    </div>
+
+
+                    {{-- ══ REPORTE 4: Consolidado por Materiales Seleccionados ══ --}}
+                    <div class="col-md-6">
+                        <div class="reporte-card">
+                            <div class="reporte-header" style="background:linear-gradient(135deg,#4a1a1a,#c0392b);">
+                                <i class="fas fa-layer-group"></i>
+                                <h5>Consolidado por Materiales - EN EJECUCIÓN</h5>
+                            </div>
+                            <div class="reporte-body">
+                                <p style="font-size:13px; color:#666; margin-bottom:14px;">
+                                    Muestra el stock actual disponible de los materiales seleccionados,
+                                    consolidando cantidades de todos los proyectos activos.
+                                </p>
+                                <hr class="divider">
+                                <label class="field-label">
+                                    <i class="fas fa-boxes mr-1"></i>Materiales
+                                </label>
+                                <select class="form-control"
+                                        id="select-materiales-consolidado"
+                                        multiple
+                                        style="width:100%;">
+                                    @foreach($arrayCatalogoMateriales as $mat)
+                                        <option value="{{ $mat->id }}">
+                                            {{ $mat->nombre }}
+                                            @if($mat->unidadMedida)
+                                                ({{ $mat->unidadMedida->nombre }})
+                                            @endif
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <div class="mt-2" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+
+                                    <button type="button"
+                                            onclick="limpiarSeleccionMateriales()"
+                                            class="btn btn-sm btn-outline-secondary">
+                                        <i class="fas fa-times mr-1"></i>Limpiar
+                                    </button>
+                                </div>
+                                <br>
+                                <button type="button"
+                                        onclick="generarPdfConsolidadoMateriales()"
+                                        class="btn-pdf"
+                                        style="background:linear-gradient(135deg,#4a1a1a,#c0392b);
+                           color:#fff; box-shadow:0 4px 14px rgba(192,57,43,.35);">
                                     <img src="{{ asset('images/logopdf.png') }}" width="22px" height="22px">
                                     Generar PDF
                                 </button>
                             </div>
                         </div>
                     </div>
+
+
+
+                    {{-- ══ REPORTE 7: Existencia Actual de Proyecto Cerrado ══ --}}
+                    <div class="col-md-6">
+                        <div class="reporte-card">
+
+                            <div class="reporte-header"
+                                 style="background:linear-gradient(135deg,#2d1b4e,#7b2d8b);">
+                                <i class="fas fa-search"></i>
+                                <h5>Existencia Actual — Proyecto Cerrado</h5>
+                            </div>
+
+                            <div class="reporte-body">
+
+                                <hr class="divider">
+
+                                <label class="field-label">
+                                    <i class="fas fa-lock mr-1"></i>
+                                    Proyecto Cerrado
+                                </label>
+
+                                <select class="form-control"
+                                        id="select-proyecto-cerrado-existencia"
+                                        style="width:100%;">
+                                    @foreach($transferido as $dd)
+                                        <option value="{{ $dd->id }}">
+                                            {{ $dd->nombre }}
+                                        </option>
+                                    @endforeach
+                                </select>
+
+                                <br>
+
+
+                                {{-- ═══════════════════════════════════════ --}}
+                                {{-- BOTÓN 2: CONTEO FÍSICO --}}
+                                {{-- ═══════════════════════════════════════ --}}
+
+                                <div style="margin-bottom:18px;">
+
+                                    <p style="font-size:13px; color:#555; margin-bottom:8px;">
+                                        <strong>Conteo Físico:</strong>
+                                        Genera un listado de los materiales existentes para realizar
+                                        el conteo físico y verificar las cantidades disponibles en bodega.
+                                        Si afecta por Transferencia o descargo general.
+                                    </p>
+
+                                    <button type="button"
+                                            onclick="generarPdfConteoFisico()"
+                                            class="btn-pdf"
+                                            style="background:linear-gradient(135deg,#1a3a1a,#2e7d32);
+                               color:#fff;
+                               box-shadow:0 4px 14px rgba(46,125,50,.35);
+                               width:100%;">
+                                        <img src="{{ asset('images/logopdf.png') }}"
+                                             width="22px"
+                                             height="22px">
+                                        Para Conteo Físico
+                                    </button>
+
+                                </div>
+
+
+                                {{-- ═══════════════════════════════════════ --}}
+                                {{-- BOTÓN 3: PRECIO / LOTE --}}
+                                {{-- ═══════════════════════════════════════ --}}
+
+                                <div style="margin-bottom:10px;">
+
+                                    <p style="font-size:13px; color:#555; margin-bottom:8px;">
+                                        <strong>Precio / Por Lote:</strong>
+                                        Muestra los materiales individualmente según cada ingreso o lote,
+                                        incluyendo el precio unitario para facilitar la verificación
+                                        del monto total de las existencias. Si afecta por Transferencia o descargo general.
+                                    </p>
+
+                                    <button type="button"
+                                            onclick="generarPdfExistenciaLote()"
+                                            class="btn-pdf"
+                                            style="background:linear-gradient(135deg,#1a3a1a,#2e7d32);
+                               color:#fff;
+                               box-shadow:0 4px 14px rgba(46,125,50,.35);
+                               width:100%;">
+                                        <img src="{{ asset('images/logopdf.png') }}"
+                                             width="22px"
+                                             height="22px">
+                                        Con Precio / Por Lote
+                                    </button>
+
+                                </div>
+
+
+
+
+                                {{-- ═══════════════════════════════════════ --}}
+                                {{-- BOTÓN 4: TOTALIZADO PROYECTOS CERRADOS --}}
+                                {{-- ═══════════════════════════════════════ --}}
+
+                                <div style="margin-bottom:10px;">
+
+                                    <p style="font-size:13px; color:#555; margin-bottom:8px;">
+                                        <strong>Totalizado</strong>
+                                        Muestra el stock sobrante consolidado de todos los proyectos cerrados, agrupado por objeto específico, tal como fue registrado al momento del cierre de cada proyecto.
+                                        Si afecta por Transferencia o descargo general.
+                                    </p>
+
+                                    <button type="button"
+                                            onclick="generarPdfTotalizadoCerrados()"
+                                            class="btn-pdf"
+                                            style="background:linear-gradient(135deg,#4a3000,#c87800);
+                           color:#fff; box-shadow:0 4px 14px rgba(200,120,0,.35);">
+                                        <img src="{{ asset('images/logopdf.png') }}" width="22px" height="22px">
+                                        Totalizado Proyectos Cerrados
+                                    </button>
+
+                                </div>
+
+
+                                {{-- ═══════════════════════════════════════ --}}
+                                {{-- BOTÓN 5: TOTALIZADO PROYECTOS CERRADOS - PRECIO UNITARIO --}}
+                                {{-- ═══════════════════════════════════════ --}}
+
+                                <div style="margin-bottom:10px;">
+
+                                    <p style="font-size:13px; color:#555; margin-bottom:8px;">
+                                        <strong>Totalizado - Precio Unitario</strong>
+                                        Muestra el stock sobrante consolidado de todos los proyectos cerrados, agrupado
+                                        por objeto específico. Muestra precio unitario desglosando cada material.
+                                        Si afecta por Transferencia o descargo general.
+                                    </p>
+
+                                    {{-- Toggle conteo físico --}}
+                                    <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                                        <div class="custom-control custom-switch">
+                                            <input type="checkbox"
+                                                   class="custom-control-input"
+                                                   id="toggle-conteo-fisico-desglose">
+                                            <label class="custom-control-label"
+                                                   for="toggle-conteo-fisico-desglose"
+                                                   style="font-size:13px; font-weight:600; color:#555; cursor:pointer;">
+                                                Incluir columnas de Conteo Físico
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <button type="button"
+                                            onclick="generarPdfTotalizadoCerradosPrecioDesglose()"
+                                            class="btn-pdf"
+                                            style="background:linear-gradient(135deg,#4a3000,#c87800);
+                   color:#fff; box-shadow:0 4px 14px rgba(200,120,0,.35);">
+                                        <img src="{{ asset('images/logopdf.png') }}" width="22px" height="22px">
+                                        Totalizado Proyectos Cerrados - Precio Unitario
+                                    </button>
+
+                                </div>
+
+
+
+
+
+                            </div>
+                        </div>
+                    </div>
+
+
+
+
+
+
+
+                    {{-- ══ REPORTE 6: Consolidado por Materiales — Proyectos Cerrados ══ --}}
+                    <div class="col-md-6">
+                        <div class="reporte-card">
+                            <div class="reporte-header"
+                                 style="background:linear-gradient(135deg,#1a3a1a,#4a7c4a);">
+                                <i class="fas fa-layer-group"></i>
+                                <h5>Consolidado por Materiales — Proyectos Cerrados</h5>
+                            </div>
+                            <div class="reporte-body">
+                                <p style="font-size:13px; color:#666; margin-bottom:14px;">
+                                    Muestra el stock sobrante de los materiales seleccionados,
+                                    consolidando cantidades de <strong>todos los proyectos cerrados</strong>.
+                                </p>
+                                <p><strong>Si la existencia es 0, no saldra en el reporte</strong></p>
+                                <hr class="divider">
+
+                                <label class="field-label">
+                                    <i class="fas fa-boxes mr-1"></i>Materiales
+                                </label>
+                                <select class="form-control"
+                                        id="select-materiales-cerrados"
+                                        multiple
+                                        style="width:100%;">
+                                    @foreach($arrayCatalogoMateriales as $mat)
+                                        <option value="{{ $mat->id }}">
+                                            {{ $mat->nombre }}
+                                            @if($mat->unidadMedida)
+                                                ({{ $mat->unidadMedida->nombre }})
+                                            @endif
+                                        </option>
+                                    @endforeach
+                                </select>
+
+                                <div class="mt-2" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                                    <button type="button"
+                                            onclick="limpiarSeleccionMaterialesCerrados()"
+                                            class="btn btn-sm btn-outline-secondary">
+                                        <i class="fas fa-times mr-1"></i>Limpiar
+                                    </button>
+                                </div>
+                                <br>
+
+                                <button type="button"
+                                        onclick="generarPdfConsolidadoMaterialesCerrados()"
+                                        class="btn-pdf"
+                                        style="background:linear-gradient(135deg,#1a3a1a,#4a7c4a);
+                           color:#fff; box-shadow:0 4px 14px rgba(74,124,74,.35);">
+                                    <img src="{{ asset('images/logopdf.png') }}" width="22px" height="22px">
+                                    Generar PDF
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+
+
+
+
+
 
                     {{-- ══ REPORTE 2: Sobrantes de Proyecto Completado ══ --}}
                     <div class="col-md-6">
@@ -170,7 +493,7 @@
                                 <h5>REPORTE DE SALDOS DE MATERIALES SOBRANTES</h5>
                             </div>
                             <div class="reporte-body">
-                                <p style="font-size:13px; color:#666; margin-bottom:14px;">
+                                <p style="font-size:15px; color:#000000; margin-bottom:14px;">
                                     Muestra el inventario sobrante registrado al momento del cierre
                                     del proyecto. Los movimientos posteriores no afectan este reporte.
                                 </p>
@@ -415,6 +738,24 @@
                 theme: "bootstrap-5",
                 language: { noResults: function () { return "Búsqueda no encontrada"; } }
             });
+
+            $('#select-materiales-consolidado').select2({
+                theme: "bootstrap-5",
+                placeholder: "Buscar y seleccionar materiales...",
+                language: { noResults: function () { return "Búsqueda no encontrada"; } }
+            });
+
+            // Inicializar select2 para materiales de proyectos cerrados
+            $('#select-materiales-cerrados').select2({
+                theme: "bootstrap-5",
+                placeholder: "Buscar y seleccionar materiales...",
+                language: { noResults: function () { return "Búsqueda no encontrada"; } }
+            });
+
+            $('#select-proyecto-cerrado-existencia').select2({
+                theme: "bootstrap-5",
+                language: { noResults: function () { return "Búsqueda no encontrada"; } }
+            });
         });
 
         function generarPdfActivo() {
@@ -580,5 +921,79 @@
                     toastr.error('Error al actualizar');
                 });
         }
+
+
+        function generarPdfTotalizado() {
+            window.open("{{ URL::to('admin/reporte/quetengopor/proyectos/totalizado/pdf') }}");
+        }
+
+        function seleccionarTodosMateriales() {
+            $('#select-materiales-consolidado option').prop('selected', true);
+            $('#select-materiales-consolidado').trigger('change');
+        }
+
+        function limpiarSeleccionMateriales() {
+            $('#select-materiales-consolidado').val(null).trigger('change');
+        }
+
+        function generarPdfConsolidadoMateriales() {
+            var ids = $('#select-materiales-consolidado').val();
+            if (!ids || ids.length === 0) {
+                toastr.error('Debe seleccionar al menos un material');
+                return;
+            }
+            var params = ids.map(id => 'ids[]=' + id).join('&');
+            window.open("{{ URL::to('admin/reporte/consolidado/materiales/pdf') }}?" + params);
+        }
+
+
+        function generarPdfTotalizadoCerrados() {
+            window.open("{{ URL::to('admin/reporte/cerrados/totalizado/pdf') }}");
+        }
+
+        function generarPdfTotalizadoCerradosPrecioDesglose() {
+            var conteo = $('#toggle-conteo-fisico-desglose').is(':checked') ? 1 : 0;
+            window.open("{{ URL::to('admin/reporte/cerrados/totalizado-desglosado/pdf') }}?conteo=" + conteo);
+        }
+
+        function limpiarSeleccionMaterialesCerrados() {
+            $('#select-materiales-cerrados').val(null).trigger('change');
+        }
+
+        function generarPdfConsolidadoMaterialesCerrados() {
+            var ids = $('#select-materiales-cerrados').val();
+            if (!ids || ids.length === 0) {
+                toastr.error('Debe seleccionar al menos un material');
+                return;
+            }
+            var params = ids.map(id => 'ids[]=' + id).join('&');
+            window.open("{{ URL::to('admin/reporte/cerrados/consolidado/materiales/pdf') }}?" + params);
+        }
+
+
+
+
+
+        function generarPdfConteoFisico() {
+            var id = $('#select-proyecto-cerrado-existencia').val();
+            if (!id) { toastr.error('Proyecto es requerido'); return; }
+            window.open("{{ URL::to('admin/reporte/cerrado/conteo/pdf') }}/" + id);
+        }
+
+
+        function generarPdfExistenciaLote() {
+            var id = $('#select-proyecto-cerrado-existencia').val();
+            if (!id) { toastr.error('Proyecto es requerido'); return; }
+            window.open("{{ URL::to('admin/reporte/cerrado/lote/pdf') }}/" + id);
+        }
+
+
+
+        function generarPdfTotalizadoPrecioActivo() {
+            var conteo = $('#toggle-conteo-fisico-activo').is(':checked') ? 1 : 0;
+            window.open("{{ URL::to('admin/reporte/quetengopor/proyectos/totalizado-precio/pdf') }}?conteo=" + conteo);
+        }
+
+
     </script>
 @endsection
