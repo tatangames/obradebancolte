@@ -105,7 +105,15 @@
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-12">
-                                <div id="tablaDatatable"></div>
+                                <div id="tablaDatatable">
+                                    {{-- Loading inicial --}}
+                                    <div id="loading-proyectos" class="text-center py-5">
+                                        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                                            <span class="sr-only">Cargando...</span>
+                                        </div>
+                                        <p class="mt-3 text-muted">Cargando listado de proyectos...</p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -156,6 +164,15 @@
                         </button>
                     </div>
                     <div class="modal-body">
+
+                        {{-- Alerta: tiene entradas registradas --}}
+                        <div id="alerta-entradas" class="alert alert-warning d-none" role="alert">
+                            <i class="fas fa-exclamation-triangle mr-2"></i>
+                            <strong>No se puede editar.</strong>
+                            Este proyecto ya tiene ingresos de material registrados.
+                            No es posible modificar su nombre mientras tenga entradas asociadas.
+                        </div>
+
                         <form id="formulario-editar" onsubmit="event.preventDefault(); editar();">
                             <div class="card-body">
                                 <div class="row">
@@ -165,7 +182,8 @@
                                         </div>
                                         <div class="form-group">
                                             <label>Nombre de Proyecto</label>
-                                            <input type="text" maxlength="800" class="form-control" id="nombre-editar" autocomplete="off">
+                                            <input type="text" maxlength="800" class="form-control"
+                                                   id="nombre-editar" autocomplete="off">
                                         </div>
                                     </div>
                                 </div>
@@ -174,11 +192,12 @@
                     </div>
                     <div class="modal-footer justify-content-between">
                         <button type="button" class="btn btn-default" data-dismiss="modal">Cerrar</button>
-                        <button type="submit" class="btn btn-primary" onclick="editar()">Guardar</button>
+                        <button type="button" id="btn-guardar-editar" class="btn btn-primary" onclick="editar()">Guardar</button>
                     </div>
                 </div>
             </div>
         </div>
+
 
     </div>
 @stop
@@ -222,6 +241,16 @@
             if ($.fn.DataTable.isDataTable('#tabla')) {
                 $('#tabla').DataTable().destroy();
             }
+
+            // Mostrar loading antes de la petición
+            $('#tablaDatatable').html(`
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                        <span class="sr-only">Cargando...</span>
+                    </div>
+                    <p class="mt-3 text-muted">Cargando listado de proyectos...</p>
+                </div>
+            `);
 
             $('#tablaDatatable').load(url, function () {
                 initDataTable();
@@ -308,17 +337,32 @@
                 });
         }
 
-        function informacion(id){
+        function informacion(id) {
             openLoading();
-            document.getElementById("formulario-editar").reset();
+            document.getElementById('formulario-editar').reset();
 
-            axios.post(urlAdmin + '/admin/proyecto/informacion', { 'id': id })
+            // Limpiar estado anterior
+            $('#alerta-entradas').addClass('d-none');
+            $('#formulario-editar input:not([type=hidden])').prop('disabled', false);
+            $('#btn-guardar-editar').prop('disabled', false).show();
+
+            axios.post(urlAdmin + '/admin/proyecto/informacion', { id: id })
                 .then((response) => {
                     closeLoading();
-                    if(response.data.success === 1){
+                    if (response.data.success === 1) {
+                        var info          = response.data.info;
+                        var tieneEntradas = response.data.tiene_entradas;
+
+                        $('#id-editar').val(info.id);
+                        $('#nombre-editar').val(info.nombre);
+
+                        if (tieneEntradas) {
+                            $('#alerta-entradas').removeClass('d-none');
+                            $('#formulario-editar input:not([type=hidden])').prop('disabled', true);
+                            $('#btn-guardar-editar').prop('disabled', true).hide();
+                        }
+
                         $('#modalEditar').modal('show');
-                        $('#id-editar').val(response.data.info.id);
-                        $('#nombre-editar').val(response.data.info.nombre);
                     } else {
                         toastr.error('Información no encontrada');
                     }
@@ -354,6 +398,12 @@
                         toastr.success('Actualizado correctamente');
                         $('#modalEditar').modal('hide');
                         recargar();
+                    } else if(response.data.success === 3){
+                        toastr.error('No se puede editar: este proyecto ya tiene entradas registradas');
+                        $('#modalEditar').modal('hide');
+                        recargar();
+                    } else if(response.data.success === 2){
+                        toastr.error('Proyecto no encontrado');
                     } else {
                         toastr.error('Error al actualizar');
                     }

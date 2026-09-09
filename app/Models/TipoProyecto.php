@@ -11,6 +11,8 @@ class TipoProyecto extends Model
     protected $table = 'tipoproyecto';
     public $timestamps = false;
 
+    protected $fillable = ['nombre'];
+
     protected $casts = [
         'transferido' => 'boolean',
     ];

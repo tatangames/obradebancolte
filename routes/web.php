@@ -118,6 +118,7 @@ Route::middleware('auth:admin')->group(function () {
     // --- CIERRE DE PROYECTOS ---
     Route::get('/admin/cierre/proyectos', [SalidasController::class,'indexTransferencias'])->name('admin.transferencias.index');
     Route::post('/admin/generar/salida/transferencia',  [SalidasController::class,'generarSalidaTransferencia']);
+    Route::post('/admin/proyectos/reabrir',            [SalidasController::class, 'reabrirProyecto']);
 
     // --- HISTORIAL / ENTRADAS ---
     Route::get('/admin/historial/entradas', [HistorialController::class,'indexHistorialEntradas'])->name('admin.historial.entradas.index');
@@ -165,14 +166,12 @@ Route::middleware('auth:admin')->group(function () {
     Route::get('/admin/historial/transferencias/acta/pdf/{id}', [HistorialController::class, 'actaDesdeHistorial']);
 
 
+    // 09/09/2026 - CUANDO HAN CERRADO PROYECTO, TRANSFERIDO MATERIALES Y QUIEREN DEVOLVER X CANTIDAD DEVUELTA
+    //              AL PROYECTO QUE SE CERRO
 
-
-
-    Route::post('/admin/historial/transferencias/uso', [HistorialController::class, 'detalleUsoTransferencia']);
-
-
+    /*Route::post('/admin/historial/transferencias/uso', [HistorialController::class, 'detalleUsoTransferencia']);
     Route::post('/admin/historial/transferencias/devolver', [HistorialController::class, 'devolverMaterialTransferencia'])
-        ->name('admin.historial.transferencias.devolver');
+        ->name('admin.historial.transferencias.devolver');*/
 
 
 
@@ -192,7 +191,7 @@ Route::middleware('auth:admin')->group(function () {
 
     Route::post('/admin/reporte/acta/preview/reserva',
         [ReportesController::class, 'actaRecepcionPreviewReserva'])
-        ->name('reporte.acta.preview');
+        ->name('reporte.acta.preview.reserva');
 
 
     Route::post('/admin/reporte/form001/reserva/preview',
@@ -213,6 +212,9 @@ Route::middleware('auth:admin')->group(function () {
     Route::post('/admin/firmas/proyectos/completado/actualizar', [ReportesController::class, 'actualizarFirmasSobrantes']);
     Route::post('/admin/firmas/proyectos/traspaso/actualizar', [ReportesController::class, 'actualizarFirmasTraspaso']);
 
+    Route::get('/admin/reporte/quetengopor/proyectos/totalizado/pdf', [ReportesController::class, 'reporteTotalizadoTodosProyectos']);
+    Route::get('/admin/reporte/quetengopor/proyectos/totalizado-precio/pdf', [ReportesController::class, 'reporteTotalizadoTodosProyectosPrecio']);
+    Route::get('/admin/reporte/consolidado/materiales/pdf', [ReportesController::class, 'reporteConsolidadoMateriales']);
 
 
 
@@ -230,7 +232,6 @@ Route::middleware('auth:admin')->group(function () {
 
 
     // --- REPORTE / ENTREGAS MENSUALES - GEAD-002-REPO
-    Route::get('/admin/reporte/proyectos/codigos', [ReportesController::class,'vistaReporteProyectoCodigos'])->name('admin.reporte.proyectos.codigos.index');
     Route::get('/admin/reporte/proyectos/codigos/pdf/{idproy}/{desde}/{hasta}/{descripcion?}', [ReportesController::class, 'reportePDFProyectoCodigos']);
 
     // --- REPORTE / PROYECTO CERRADO - INVENTARIO QUE SOBRO

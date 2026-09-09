@@ -13,16 +13,16 @@ use App\Models\SalidasDetalle;
 use App\Models\TipoProyecto;
 use App\Models\Transferencia;
 use App\Models\TransferenciaDetalle;
-use App\Models\UnidadMedida;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 
 class ReportesController extends Controller
 {
+
+
     public function pdfQueHaSalidoProyectos($idproy, $desde, $hasta, $tipo)
     {
         $infoProyecto = TipoProyecto::find($idproy);
@@ -2380,12 +2380,7 @@ class ReportesController extends Controller
 
 
 
-    public function vistaReporteProyectoCodigos()
-    {
-        $proyectos = TipoProyecto::orderBy('nombre', 'ASC')->get();
 
-        return view('backend.admin.repuestos.reporte.vistareporteporcodigos', compact('proyectos'));
-    }
 
 
     public function reportePDFProyectoCodigos($idproy, $desde, $hasta, $descripcion = '')
@@ -4298,8 +4293,6 @@ padding:5px 4px; background:#d9e1f2; text-align:center;";
             ]);
         }
     }
-
-
 
 
     public function vistaPDFReporteSobranteProyectoCerrado(Request $request)
@@ -9060,7 +9053,6 @@ padding:5px 4px; background:#d9e1f2; text-align:center;";
 
 
 
-
     public function reporteLoteCerrado($id)
     {
         $proyecto     = TipoProyecto::findOrFail($id);
@@ -9078,6 +9070,7 @@ padding:5px 4px; background:#d9e1f2; text-align:center;";
         ) as sd'), 'sd.id_entrada_detalle', '=', 'ed.id')
             ->where('e.id_tipoproyecto', $id)
             ->selectRaw('
+            ed.id as id_entrada_detalle,
             m.id as id_material,
             m.nombre,
             COALESCE(um.nombre, "—") as medida,
@@ -9086,14 +9079,17 @@ padding:5px 4px; background:#d9e1f2; text-align:center;";
             (ed.cantidad_inicial - COALESCE(sd.total_salido, 0)) as disponible
         ')
             ->havingRaw('disponible > 0')
+            ->orderBy('m.nombre')
             ->get();
 
-        // Agrupar por código objeto específico → material + precio (lote)
+        // Agrupar por código de objeto específico.
+        // IMPORTANTE: la clave única ahora es el id del lote (ed.id), NO material+precio,
+        // así cada lote se muestra en su propia fila aunque tenga la misma cantidad y el mismo precio.
         $porCodigo = [];
 
         foreach ($filas as $fila) {
             $codigo     = $fila->codigo;
-            $claveUnica = $fila->id_material . '_' . $fila->precio;
+            $claveUnica = $fila->id_entrada_detalle; // <-- clave por lote, no por material_precio
 
             if (!isset($porCodigo[$codigo])) {
                 $porCodigo[$codigo] = [
@@ -9102,16 +9098,12 @@ padding:5px 4px; background:#d9e1f2; text-align:center;";
                 ];
             }
 
-            if (!isset($porCodigo[$codigo]['materiales'][$claveUnica])) {
-                $porCodigo[$codigo]['materiales'][$claveUnica] = [
-                    'nombre'  => $fila->nombre,
-                    'medida'  => $fila->medida,
-                    'precio'  => (float) $fila->precio,
-                    'stock'   => 0,
-                ];
-            }
-
-            $porCodigo[$codigo]['materiales'][$claveUnica]['stock'] += $fila->disponible;
+            $porCodigo[$codigo]['materiales'][$claveUnica] = [
+                'nombre'  => $fila->nombre,
+                'medida'  => $fila->medida,
+                'precio'  => (float) $fila->precio,
+                'stock'   => (float) $fila->disponible,
+            ];
         }
 
         foreach ($porCodigo as &$grupo) {
@@ -9192,9 +9184,9 @@ padding:5px 4px; background:#d9e1f2; text-align:center;";
 </table>";
 
         $thStyle  = "font-weight:bold; font-size:11px; border:0.8px solid #000;
-                 padding:5px 4px; background:#d9e1f2; text-align:center;";
+             padding:5px 4px; background:#d9e1f2; text-align:center;";
         $thBlanco = "font-weight:bold; font-size:11px; border:0.8px solid #000;
-                 padding:5px 4px; background:#d9e1f2; text-align:center;";
+             padding:5px 4px; background:#d9e1f2; text-align:center;";
         $tdStyle  = "font-size:11px; border:0.8px solid #000; padding:8px 4px;";
         $tdC      = $tdStyle . " text-align:center;";
         $tdR      = $tdStyle . " text-align:right;";
@@ -9301,7 +9293,6 @@ padding:5px 4px; background:#d9e1f2; text-align:center;";
         $mpdf->WriteHTML($tabla, 2);
         $mpdf->Output();
     }
-
 
 
 }

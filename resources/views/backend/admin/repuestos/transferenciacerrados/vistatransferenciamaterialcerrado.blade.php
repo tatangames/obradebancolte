@@ -102,6 +102,7 @@
         .btn-form-solicitud:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(253,126,20,.45); color: #fff; }
         .badge-reservado { background: #6f42c1; color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 4px; }
         .tr-reservado { background: #faf5ff !important; }
+        .tr-en-detalle { background: #eef6ff !important; }
     </style>
 
     <div id="divcontenedor" style="display:none">
@@ -826,7 +827,7 @@
                         });
 
                         $('#tbodyMateriales').append(
-                            "<tr class='" + trClass + "'>" +
+                            "<tr class='" + trClass + "' data-fila-material='" + m.id_entrada_detalle + "'>" +
                             "<td>" + (i + 1) + "</td>" +
                             "<td>" + (m.objespec ?? '—') + "</td>" +
                             "<td>" + celdaMaterial + "</td>" +
@@ -849,7 +850,59 @@
         }
 
         function seleccionarMaterial(btn) {
-            abrirModalCantidad($(btn).data('id'), $(btn).data('nombre'), parseInt($(btn).data('libre')));
+            var id = $(btn).data('id');
+
+            // ── Bloqueo: no permitir volver a elegir un material ya agregado al Paso 4 ──
+            if (materialYaAgregado(id)) {
+                toastr.warning('Este material ya está en el detalle (Paso 4). Elimínelo de ahí si desea cambiar la cantidad.');
+                return;
+            }
+
+            abrirModalCantidad(id, $(btn).data('nombre'), parseInt($(btn).data('libre')));
+        }
+
+        // Verifica si un id_entrada_detalle ya existe en la tabla de detalle (Paso 4)
+        function materialYaAgregado(idEntradaDetalle) {
+            var encontrado = false;
+            $("#matriz input[name='idmaterialArray[]']").each(function () {
+                if (String($(this).attr('data-idmaterialArray')) === String(idEntradaDetalle)) {
+                    encontrado = true;
+                }
+            });
+            return encontrado;
+        }
+
+        // Marca visualmente el material como "Agregado" y deshabilita su botón en el Paso 3
+        function marcarMaterialAgregado(idEntradaDetalle) {
+            var fila = $("#tbodyMateriales tr[data-fila-material='" + idEntradaDetalle + "']");
+            fila.addClass('tr-en-detalle');
+            fila.find("button[data-id='" + idEntradaDetalle + "']")
+                .prop('disabled', true)
+                .removeClass('btn-primary')
+                .addClass('btn-secondary')
+                .html("<i class='fas fa-check mr-1'></i> Agregado");
+        }
+
+        // Revierte el estado anterior cuando el material se quita del detalle (Paso 4)
+        function desmarcarMaterialAgregado(idEntradaDetalle) {
+            var fila = $("#tbodyMateriales tr[data-fila-material='" + idEntradaDetalle + "']");
+            fila.removeClass('tr-en-detalle');
+            fila.find("button[data-id='" + idEntradaDetalle + "']")
+                .prop('disabled', false)
+                .removeClass('btn-secondary')
+                .addClass('btn-primary')
+                .html("<i class='fas fa-plus'></i> Seleccionar");
+        }
+
+        // Reactiva todos los botones del Paso 3 (usado cuando se limpia el detalle completo)
+        function resetearBotonesMateriales() {
+            $("#tbodyMateriales tr").removeClass('tr-en-detalle');
+            $("#tbodyMateriales button[data-id]").each(function () {
+                $(this).prop('disabled', false)
+                    .removeClass('btn-secondary')
+                    .addClass('btn-primary')
+                    .html("<i class='fas fa-plus'></i> Seleccionar");
+            });
         }
 
         function seleccionarDestino(tipo) {
@@ -876,7 +929,10 @@
                 $('#lblBtnForm').text('GEAD-001-FORM');
             }
 
+            // Al cambiar el tipo de movimiento se limpia el detalle, así que
+            // los botones del Paso 3 deben volver a su estado "Seleccionar"
             $('#matriz tbody tr').remove();
+            resetearBotonesMateriales();
             actualizarContador();
         }
 
@@ -937,6 +993,14 @@
             if (!cantidad || cantidad <= 0) { toastr.error('Ingrese una cantidad válida'); return; }
             if (cantidad > max)             { toastr.error('Supera el stock libre');        return; }
 
+            // ── Bloqueo de respaldo: por si el modal quedó abierto y el material
+            //    ya fue agregado por otra vía mientras tanto ──
+            if (materialYaAgregado(idEntradaDetalle)) {
+                toastr.error('Este material ya fue agregado al detalle');
+                $('#modalCantidad').modal('hide');
+                return;
+            }
+
             var labelDestino = '';
             if (tipoDestino === 'proyecto') labelDestino = '<span class="badge badge-success">Proyecto</span>';
             if (tipoDestino === 'general')  labelDestino = '<span class="badge badge-warning">General</span>';
@@ -953,6 +1017,10 @@
                 "<td><button type='button' class='btn btn-danger btn-block btn-sm' onclick='borrarFila(this)'>Borrar</button></td>" +
                 "</tr>"
             );
+
+            // Deshabilita el botón "Seleccionar" del material recién agregado (Paso 3)
+            marcarMaterialAgregado(idEntradaDetalle);
+
             actualizarContador();
             $('#modalCantidad').modal('hide');
             toastr.success('Agregado al detalle');
@@ -1074,7 +1142,7 @@
                 Swal.fire({
                     title: '¿Confirmar reserva?',
                     text:  '¿Reservar estos materiales? Quedarán bloqueados hasta su despacho.',
-                    icon: 'question', showCancelButton: true,
+                    type: 'question', showCancelButton: true,
                     confirmButtonColor: '#6f42c1', cancelButtonColor: '#d33',
                     cancelButtonText: 'Cancelar', confirmButtonText: 'Sí, reservar'
                 }).then((result) => { if (result.isConfirmed) ejecutarGuardar('guardar'); });
@@ -1161,12 +1229,12 @@
                                 html: '<b>' + response.data.nombre_material + '</b><br><br>' +
                                     'Solicitado: <b>' + response.data.cantidad_pedida + '</b><br>' +
                                     'Disponible libre: <b>' + response.data.disponible + '</b>',
-                                icon: 'warning', confirmButtonColor: '#d33', confirmButtonText: 'Entendido'
+                                type: 'warning', confirmButtonColor: '#d33', confirmButtonText: 'Entendido'
                             });
                         } else if (response.data.success === 10) {
                             Swal.fire({
                                 title: 'Materiales Reservados',
-                                icon: 'success',
+                                type: 'success',
                                 allowOutsideClick: false,
                                 confirmButtonColor: '#6f42c1',
                                 confirmButtonText: 'Aceptar'
@@ -1211,7 +1279,7 @@
                             html: '<b>' + response.data.nombre_material + '</b><br><br>' +
                                 'Solicitado: <b>' + response.data.cantidad_pedida + '</b><br>' +
                                 'Disponible libre: <b>' + response.data.disponible + '</b>',
-                            icon: 'warning',
+                            type: 'warning',
                             confirmButtonColor: '#d33',
                             confirmButtonText: 'Entendido'
                         });
@@ -1220,7 +1288,7 @@
                         Swal.fire({
                             title: 'Proyecto destino no válido',
                             text: 'El proyecto destino está cerrado o no existe. Selecciona un proyecto activo.',
-                            icon: 'error',
+                            type: 'error',
                             confirmButtonColor: '#d33',
                             confirmButtonText: 'Entendido'
                         });
@@ -1229,7 +1297,7 @@
                         Swal.fire({
                             title: 'Proyecto origen no válido',
                             text: 'El proyecto origen no está cerrado. Esta operación solo aplica a proyectos cerrados.',
-                            icon: 'error',
+                            type: 'error',
                             confirmButtonColor: '#d33',
                             confirmButtonText: 'Entendido'
                         });
@@ -1239,7 +1307,7 @@
                             title: 'Fecha no válida',
                             html: 'La fecha de la transferencia no puede ser anterior al cierre del proyecto.<br><br>' +
                                 'Fecha de cierre: <b>' + response.data.fecha_cierre + '</b>',
-                            icon: 'error',
+                            type: 'error',
                             confirmButtonColor: '#d33',
                             confirmButtonText: 'Entendido'
                         });
@@ -1251,7 +1319,7 @@
                         };
                         Swal.fire({
                             title: titulos[tipoDestino] || 'Guardado',
-                            icon: 'success',
+                            type: 'success',
                             allowOutsideClick: false,
                             confirmButtonColor: '#28a745',
                             confirmButtonText: 'Aceptar'
@@ -1261,7 +1329,7 @@
                         Swal.fire({
                             title: 'Error inesperado',
                             text: 'Ocurrió un error al procesar la operación. Contacta al administrador.',
-                            icon: 'error',
+                            type: 'error',
                             confirmButtonColor: '#d33',
                             confirmButtonText: 'Entendido'
                         });
@@ -1274,7 +1342,16 @@
         }
 
         function borrarFila(elemento) {
-            elemento.closest('tr').remove();
+            var fila = $(elemento).closest('tr');
+            var idEntradaDetalle = fila.find("input[name='idmaterialArray[]']").attr('data-idmaterialArray');
+
+            fila.remove();
+
+            // Reactiva el botón "Seleccionar" del material que se acaba de quitar del detalle
+            if (idEntradaDetalle) {
+                desmarcarMaterialAgregado(idEntradaDetalle);
+            }
+
             setearFila();
             actualizarContador();
         }

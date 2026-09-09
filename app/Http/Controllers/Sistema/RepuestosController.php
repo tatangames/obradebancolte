@@ -121,7 +121,34 @@ class RepuestosController extends Controller
         ]);
         if ($validar->fails()) { return ['success' => 0]; }
 
-        Materiales::where('id', $request->id)->update([
+        $material = Materiales::find($request->id);
+
+        if (!$material) {
+            return ['success' => 0];
+        }
+
+        $tieneEntradas = EntradasDetalle::where('id_material', $request->id)->exists();
+
+        if ($tieneEntradas) {
+
+            // Si ya tiene un Objeto Específico asignado, no se puede tocar nada.
+            if (!is_null($material->id_objespecifico)) {
+                return [
+                    'success' => 3,
+                    'msg'     => 'Este material ya tiene entradas registradas, no puede editarse.',
+                ];
+            }
+
+            // Objeto Específico vacío: se permite asignarlo, pero nada más se actualiza.
+            $material->update([
+                'id_objespecifico' => $request->id_objespecifico,
+            ]);
+
+            return ['success' => 1];
+        }
+
+        // Sin entradas registradas: edición completa permitida.
+        $material->update([
             'id_medida'        => $request->unidad ?: null,
             'id_objespecifico' => $request->id_objespecifico,
             'nombre'           => $request->nombre,
@@ -130,6 +157,7 @@ class RepuestosController extends Controller
 
         return ['success' => 1];
     }
+
 
 
 

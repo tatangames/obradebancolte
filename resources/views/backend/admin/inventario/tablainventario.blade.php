@@ -34,7 +34,7 @@
                                     <td>
                                         <button type="button" style="margin: 2px" class="btn btn-info btn-xs"
                                                 onclick="verProyectos({{ $dato->id }}, '{{ addslashes($dato->nombre) }}')">
-                                            <i class="fas fa-map-marker-alt"></i> Proyectos
+                                            <i class="fas fa-map-marker-alt"></i> Distribución
                                         </button>
                                         <button type="button" style="margin: 2px" class="btn btn-primary btn-xs"
                                                 onclick="informacion({{ $dato->id }})">

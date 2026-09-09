@@ -11,6 +11,13 @@ class Materiales extends Model
     protected $table = 'materiales';
     public $timestamps = false;
 
+    protected $fillable = [
+        'nombre',
+        'codigo',
+        'id_medida',
+        'id_objespecifico',
+    ];
+
     public function unidadMedida()
     {
         return $this->belongsTo(UnidadMedida::class, 'id_medida');
@@ -20,6 +27,4 @@ class Materiales extends Model
     {
         return $this->belongsTo(ObjetoEspecifico::class, 'id_objespecifico');
     }
-
-
 }

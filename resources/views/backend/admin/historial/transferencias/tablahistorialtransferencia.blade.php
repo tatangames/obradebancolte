@@ -67,12 +67,14 @@
                                             <i class="fas fa-list"></i> Detalle
                                         </button>
 
-                                        <button type="button"
+                                       <!-- <button type="button"
                                                 class="btn btn-warning btn-xs"
                                                 style="margin: 3px"
                                                 onclick="verUso({{ $dato->id }}, '{{ addslashes($dato->nombre_origen) }}')">
                                             <i class="fas fa-search-dollar"></i> Ver Uso
                                         </button>
+
+                                        -->
 
                                         {{-- Botón PDF — solo para transferencias normales (las de reserva no tienen datos del acta) --}}
                                         @if(! $dato->es_reserva)
