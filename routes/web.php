@@ -258,6 +258,7 @@ Route::middleware('auth:admin')->group(function () {
     Route::get('/admin/reporte/cerrados/totalizado/pdf',
         [ReportesController::class, 'reporteTotalizadoCerrados']);
 
+    // REPORTE INVENTARIO TOTALIZADO — DESGLOSE POR PRECIO
     Route::get('/admin/reporte/cerrados/totalizado-desglosado/pdf',
         [ReportesController::class, 'reporteTotalizadoCerradosDesglosadoPrecio']);
 
@@ -270,6 +271,11 @@ Route::middleware('auth:admin')->group(function () {
     Route::get('/admin/reporte/cerrado/lote/pdf/{id}',
         [ReportesController::class, 'reporteLoteCerrado']);
 
+
+
+    // REPORTE INVENTARIO DESGLOSADO — DESGLOSE POR PRECIO (POR PROYECTO ACTIVO)
+    Route::get('/admin/reporte/quetengopor/proyectos/totalizado-desglosado/pdf/{id}',
+        [ReportesController::class, 'reporteTotalizadoActivoDesglosadoPrecio']);
 
 
 }); // end auth

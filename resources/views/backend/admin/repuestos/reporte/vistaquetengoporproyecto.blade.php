@@ -156,44 +156,76 @@
 
 
 
-                                <button type="button" onclick="generarPdfActivo()" class="btn-pdf azul">
-                                    <img src="{{ asset('images/logopdf.png') }}" width="22px" height="22px">
-                                    Generar PDF
-                                </button>
+                                <div style="display:flex; flex-direction:column; gap:18px; align-items:flex-start;">
 
-                                {{-- ✅ NUEVO: botón totalizado --}}
-                                <button type="button" onclick="generarPdfTotalizado()" class="btn-pdf"
-                                        style="background:linear-gradient(135deg,#1a4d5c,#117a8b);
-                             color:#fff; box-shadow:0 4px 14px rgba(17,122,139,.35); margin-left:8px;">
-                                    <img src="{{ asset('images/logopdf.png') }}" width="22px" height="22px">
-                                    Totalizado General
-                                </button>
+                                    <!-- 1. PDF individual -->
+                                    <div style="display:flex; flex-direction:column; gap:4px;">
+                                        <span style="font-size:13px; color:#555;">Genera el PDF del proyecto seleccionado</span>
+                                        <button type="button" onclick="generarPdfActivo()" class="btn-pdf azul">
+                                            <img src="{{ asset('images/logopdf.png') }}" width="22px" height="22px">
+                                            Generar PDF
+                                        </button>
+                                    </div>
 
+                                    <!-- 2. PDF totalizado desglosado por lote -->
+                                    <div style="display:flex; flex-direction:column; gap:4px;">
+                                        <span style="font-size:13px; color:#555;">Genera el PDF desglosado por lote, con precio unitario, conteo físico y diferencia
+                                         del Proyecto Seleccionado</span>
+                                        <button type="button" onclick="generarPdfTotalizadoActivoDesglose()" class="btn-pdf"
+                                                style="background:linear-gradient(135deg,#4a3000,#c87800);
+                       color:#fff; box-shadow:0 4px 14px rgba(200,120,0,.35);">
+                                            <img src="{{ asset('images/logopdf.png') }}" width="22px" height="22px">
+                                            Desglosado - Precio Unitario
+                                        </button>
+                                    </div>
+
+
+
+
+
+                                </div>
 
 
                                 {{-- ✅ NUEVO: Totalizado General - Precio Unitario --}}
-                                <div style="margin-top:18px; border-top:2px dashed #e8eef8; padding-top:16px;">
+                                <div style="margin-top:18px; border-top:2px dashed #e8eef8; padding-top:16px; display:flex; flex-direction:column; gap:18px;">
 
-                                    {{-- Toggle conteo físico --}}
-                                    <div class="custom-control custom-switch" style="margin-bottom:10px;">
-                                        <input type="checkbox"
-                                               class="custom-control-input"
-                                               id="toggle-conteo-fisico-activo">
-                                        <label class="custom-control-label"
-                                               for="toggle-conteo-fisico-activo"
-                                               style="font-size:13px; font-weight:600; color:#555; cursor:pointer;">
-                                            Incluir columnas de Conteo Físico
-                                        </label>
+                                    <!-- 3. PDF totalizado general -->
+                                    <div style="display:flex; flex-direction:column; gap:4px;">
+                                        <span style="font-size:13px; color:#555;">Genera el PDF con el total general de todos los Proyectos</span>
+                                        <button type="button" onclick="generarPdfTotalizado()" class="btn-pdf"
+                                                style="background:linear-gradient(135deg,#1a4d5c,#117a8b);
+                       color:#fff; box-shadow:0 4px 14px rgba(17,122,139,.35);">
+                                            <img src="{{ asset('images/logopdf.png') }}" width="22px" height="22px">
+                                            Totalizado General
+                                        </button>
                                     </div>
 
-                                    <button type="button"
-                                            onclick="generarPdfTotalizadoPrecioActivo()"
-                                            class="btn-pdf"
-                                            style="background:linear-gradient(135deg,#1a4d5c,#117a8b);
+                                    <!-- 4. PDF totalizado con precio unitario + toggle -->
+                                    <div style="display:flex; flex-direction:column; gap:8px;">
+                                        <span style="font-size:13px; color:#555;">Genera el PDF con el total general y precio unitario de todos los Proyectos</span>
+
+                                        {{-- Toggle conteo físico --}}
+                                        <div class="custom-control custom-switch">
+                                            <input type="checkbox"
+                                                   class="custom-control-input"
+                                                   id="toggle-conteo-fisico-activo">
+                                            <label class="custom-control-label"
+                                                   for="toggle-conteo-fisico-activo"
+                                                   style="font-size:13px; font-weight:600; color:#555; cursor:pointer;">
+                                                Incluir columnas de Conteo Físico
+                                            </label>
+                                        </div>
+
+                                        <button type="button"
+                                                onclick="generarPdfTotalizadoPrecioActivo()"
+                                                class="btn-pdf"
+                                                style="background:linear-gradient(135deg,#1a4d5c,#117a8b);
                        color:#fff; box-shadow:0 4px 14px rgba(17,122,139,.35);">
-                                        <img src="{{ asset('images/logopdf.png') }}" width="22px" height="22px">
-                                        Totalizado General - Precio Unitario
-                                    </button>
+                                            <img src="{{ asset('images/logopdf.png') }}" width="22px" height="22px">
+                                            Totalizado General - Precio Unitario
+                                        </button>
+                                    </div>
+
                                 </div>
 
 
@@ -931,6 +963,14 @@
 
         function generarPdfTotalizado() {
             window.open("{{ URL::to('admin/reporte/quetengopor/proyectos/totalizado/pdf') }}");
+        }
+
+        // ✅ Totalizado Desglosado - Precio Unitario (por proyecto activo, por lote, con Conteo Físico y Diferencia)
+        function generarPdfTotalizadoActivoDesglose() {
+            var idproy = $('#select-proyecto-activo').val();
+            if (!idproy) { toastr.error('Proyecto es requerido'); return; }
+
+            window.open("{{ URL::to('admin/reporte/quetengopor/proyectos/totalizado-desglosado/pdf') }}/" + idproy);
         }
 
         function seleccionarTodosMateriales() {
