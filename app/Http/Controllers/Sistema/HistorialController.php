@@ -509,10 +509,11 @@ class HistorialController extends Controller
             ->get()
             ->map(function ($item) {
                 return [
-                    'codigo'         => $item->entradaDetalle->id_material ?? '',
-                    'material'       => $item->entradaDetalle->material->nombre ?? '',
-                    'cantidad_salida'=> $item->cantidad_salida,
-                    'precio'         => number_format($item->entradaDetalle->precio, 4),
+                    'codigo'          => $item->entradaDetalle->id_material ?? '',
+                    'material'        => $item->entradaDetalle->material->nombre ?? '',
+                    'unidad'          => $item->entradaDetalle->material->unidad ?? '',
+                    'cantidad_salida' => $item->cantidad_salida,
+                    'precio'          => number_format($item->entradaDetalle->precio, 4),
                 ];
             });
 
