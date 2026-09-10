@@ -505,7 +505,7 @@ class HistorialController extends Controller
         }
 
         $detalle = $salida->detalle()
-            ->with('entradaDetalle.material')
+            ->with('entradaDetalle.material.unidadMedida')
             ->get()
             ->map(function ($item) {
                 return [
