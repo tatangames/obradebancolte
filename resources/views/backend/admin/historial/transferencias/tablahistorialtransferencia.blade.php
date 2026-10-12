@@ -54,27 +54,27 @@
                                     <td>{{ $dato->descripcion ?? '' }}</td>
                                     <td class="text-center">
 
+                                        {{-- Los textos van en data-* (Blade los escapa bien) y se leen con
+                                             this.dataset. Antes iban dentro del onclick con addslashes, y un
+                                             salto de línea en la descripción dejaba el botón sin funcionar. --}}
                                         <button type="button"
                                                 class="btn btn-info btn-xs"
                                                 style="margin: 3px"
-                                                onclick="verDetalle(
-                {{ $dato->id }},
-                '{{ addslashes($dato->nombre_origen) }}',
-                '{{ $dato->fecha_fmt }}',
-                '',
-                '{{ addslashes($dato->descripcion ?? '') }}'
-            )">
+                                                data-origen="{{ $dato->nombre_origen }}"
+                                                data-fecha="{{ $dato->fecha_fmt }}"
+                                                data-descripcion="{{ $dato->descripcion ?? '' }}"
+                                                onclick="verDetalle({{ $dato->id }}, this.dataset.origen, this.dataset.fecha, '', this.dataset.descripcion)">
                                             <i class="fas fa-list"></i> Detalle
                                         </button>
 
-                                       <!-- <button type="button"
-                                                class="btn btn-warning btn-xs"
-                                                style="margin: 3px"
-                                                onclick="verUso({{ $dato->id }}, '{{ addslashes($dato->nombre_origen) }}')">
-                                            <i class="fas fa-search-dollar"></i> Ver Uso
-                                        </button>
-
-                                        -->
+                                        {{-- Botón "Ver Uso" desactivado temporalmente.
+                                             Para reactivarlo:
+                                             <button type="button" class="btn btn-warning btn-xs" style="margin: 3px"
+                                                     data-origen="{{ $dato->nombre_origen }}"
+                                                     onclick="verUso({{ $dato->id }}, this.dataset.origen)">
+                                                 <i class="fas fa-search-dollar"></i> Ver Uso
+                                             </button>
+                                        --}}
 
                                         {{-- Botón PDF — solo para transferencias normales (las de reserva no tienen datos del acta) --}}
                                         @if(! $dato->es_reserva)

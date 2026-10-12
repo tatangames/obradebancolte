@@ -420,6 +420,49 @@
 
     <script>
 
+        // ── Constantes de cantidad ────────────────────────────────────────
+        var CANTIDAD_MAXIMA = 1000000; // máximo permitido por salida
+        var REGLA_DECIMAL   = /^\d+(\.\d{1,2})?$/; // entero o hasta 2 decimales
+
+        // Redondea a 2 decimales evitando errores de punto flotante
+        function redondear2(n) {
+            return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+        }
+
+        // Deja solo dígitos y un punto, con máximo 2 decimales
+        function sanitizarDecimal(valor) {
+            valor = String(valor).replace(/[^0-9.]/g, '');
+
+            var partes = valor.split('.');
+            if (partes.length > 2) {
+                valor = partes[0] + '.' + partes.slice(1).join('');
+                partes = valor.split('.');
+            }
+            if (partes.length === 2) {
+                valor = partes[0] + '.' + partes[1].substring(0, 2);
+            }
+            return valor;
+        }
+
+        // Normaliza lo escrito: ".5" → "0.5"  |  "5." → "5"  |  "." → ""
+        function normalizarCantidad(valor) {
+            valor = String(valor ?? '').trim();
+            if (valor === '' || valor === '.') return '';
+            if (valor.charAt(0) === '.') valor = '0' + valor;
+            if (valor.charAt(valor.length - 1) === '.') valor = valor.slice(0, -1);
+            return valor;
+        }
+
+        // Escapa texto para meterlo de forma segura dentro de value='...'
+        function escapeHtml(texto) {
+            return String(texto ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
         // ── Abrir modal buscador ──────────────────────────────────────────
         function abrirModal() {
             document.getElementById('tablaRepuesto').innerHTML = "";
@@ -427,11 +470,19 @@
             $('#modalRepuesto').modal('show');
         }
 
-        // ── Validar teclas numéricas ──────────────────────────────────────
+        // ── Validar teclas numéricas (permite un solo punto decimal) ──────
         function validateInput(event) {
+            if (event.ctrlKey || event.metaKey) return true; // copiar / pegar / seleccionar todo
+
             const key = event.key;
-            if (["Backspace","ArrowLeft","ArrowRight","Delete","Tab"].includes(key)) return true;
-            if (key === "e" || key === "E" || key === "-" || isNaN(Number(key))) return false;
+            if (["Backspace","ArrowLeft","ArrowRight","Delete","Tab","Home","End"].includes(key)) return true;
+
+            if (key === ".") {
+                // solo un punto permitido
+                return event.target.value.indexOf('.') === -1;
+            }
+
+            if (key === "e" || key === "E" || key === "-" || key === " " || isNaN(Number(key))) return false;
             return true;
         }
 
@@ -505,18 +556,19 @@
 
                         $.each(response.data.arrayIngreso, function (key, val) {
                             var markup = "<tr>" +
-                                "<td><input disabled value='" + val.fechaIngreso + "' class='form-control form-control-sm' type='text'></td>" +
-                                "<td><input disabled value='" + (val.codigo ?? '') + "' class='form-control form-control-sm' type='text'></td>" +
-                                "<td><input disabled value='" + val.precioFormat + "' class='form-control form-control-sm' type='text'></td>" +
+                                "<td><input disabled value='" + escapeHtml(val.fechaIngreso) + "' class='form-control form-control-sm' type='text'></td>" +
+                                "<td><input disabled value='" + escapeHtml(val.codigo ?? '') + "' class='form-control form-control-sm' type='text'></td>" +
+                                "<td><input disabled value='" + escapeHtml(val.precioFormat) + "' class='form-control form-control-sm' type='text'></td>" +
                                 "<td>" +
                                 "<input name='arrayCantidadActual[]' disabled " +
                                 "data-cantidadActualFila='" + val.cantidadActual + "' " +
-                                "value='" + val.cantidadActual + "' class='form-control form-control-sm' type='number'>" +
+                                "value='" + val.cantidadActual + "' class='form-control form-control-sm' type='text'>" +
                                 "</td>" +
                                 "<td>" +
                                 "<input class='form-control form-control-sm' " +
                                 "data-idfilaentradadetalle='" + val.id + "' " +
-                                "name='arrayCantidadSalida[]' min='0' max='" + val.cantidadActual + "' type='number' " +
+                                "name='arrayCantidadSalida[]' type='text' inputmode='decimal' autocomplete='off' maxlength='10' " +
+                                "placeholder='0.00' " +
                                 "onkeydown=\"return validateInput(event);\" " +
                                 "oninput=\"validateCantidadSalida(this, " + val.cantidadActual + ");\">" +
                                 "</td>" +
@@ -536,10 +588,11 @@
         // ── Agregar filas al detalle ──────────────────────────────────────
         function agregarAlDetalle() {
             var arrayIdEntradaDetalle    = $("input[name='arrayCantidadSalida[]']").map(function () { return $(this).attr("data-idfilaentradadetalle"); }).get();
-            var arrayCantidadSalida      = $("input[name='arrayCantidadSalida[]']").map(function () { return $(this).val(); }).get();
+            var arrayCantidadSalida      = $("input[name='arrayCantidadSalida[]']").map(function () { return normalizarCantidad($(this).val()); }).get();
             var arrayCantidadActual      = $("input[name='arrayCantidadActual[]']").map(function () { return $(this).attr("data-cantidadActualFila"); }).get();
 
             colorBlancoTabla();
+            colorLimpiarModal();
             var habraSalida = true;
 
             for (var a = 0; a < arrayCantidadSalida.length; a++) {
@@ -547,17 +600,34 @@
                 var infoFilaCantidadActual = arrayCantidadActual[a];
 
                 if (filaCantidad !== '') {
-                    if (filaCantidad <= 0) {
-                        colorRojoTabla(a);
+
+                    if (!REGLA_DECIMAL.test(filaCantidad)) {
+                        colorRojoModal(a);
+                        alertaMensaje('info', 'Error', 'Fila #' + (a + 1) + ": Número inválido (máximo 2 decimales)");
+                        return;
+                    }
+
+                    var cantidad = redondear2(filaCantidad);
+
+                    if (cantidad <= 0) {
+                        colorRojoModal(a);
                         alertaMensaje('info', 'Error', 'Fila #' + (a + 1) + ": No se permite cero");
                         return;
                     }
+
+                    if (cantidad > CANTIDAD_MAXIMA) {
+                        colorRojoModal(a);
+                        alertaMensaje('info', 'Error', 'Fila #' + (a + 1) + ": Máximo 1,000,000.00");
+                        return;
+                    }
+
+                    if (cantidad > redondear2(infoFilaCantidadActual)) {
+                        colorRojoModal(a);
+                        alertaMensaje('info', 'Error', 'Fila #' + (a + 1) + ": Supera cantidad actual");
+                        return;
+                    }
+
                     habraSalida = false;
-                }
-                if (filaCantidad > Number(infoFilaCantidadActual)) {
-                    colorRojoTabla(a);
-                    alertaMensaje('info', 'Error', 'Fila #' + (a + 1) + ": Supera cantidad actual");
-                    return;
                 }
             }
 
@@ -568,17 +638,18 @@
 
             for (var z = 0; z < arrayCantidadSalida.length; z++) {
                 var fc = arrayCantidadSalida[z];
-                if (fc !== '' && fc != 0) {
+                if (fc !== '' && redondear2(fc) > 0) {
                     nFilas++;
 
+                    var fcFormato = redondear2(fc).toFixed(2); // siempre 2 decimales
 
                     var markup = "<tr>" +
                         "<td><p id='fila" + nFilas + "' class='form-control' style='max-width:55px'>" + nFilas + "</p></td>" +
                         "<td>" +
                         "<input name='idmaterialArray[]' type='hidden' data-idmaterialArray='" + arrayIdEntradaDetalle[z] + "'>" +
-                        "<input disabled value='" + nombreTexto + "' class='form-control form-control-sm' type='text'>" +
+                        "<input disabled value='" + escapeHtml(nombreTexto) + "' class='form-control form-control-sm' type='text'>" +
                         "</td>" +
-                        "<td><input name='salidaArray[]' disabled data-cantidadSalida='" + fc + "' value='" + fc + "' class='form-control form-control-sm' type='text'></td>" +
+                        "<td><input name='salidaArray[]' disabled data-cantidadSalida='" + fcFormato + "' value='" + fcFormato + "' class='form-control form-control-sm' type='text'></td>" +
                         "<td><button type='button' class='btn btn-danger btn-block btn-sm' onclick='borrarFila(this)'>Borrar</button></td>" +
                         "</tr>";
 
@@ -624,16 +695,15 @@
                 return;
             }
 
-            var reglaEntero        = /^[0-9]\d*$/;
             var idEntradaDetalle   = $("input[name='idmaterialArray[]']").map(function () { return $(this).attr("data-idmaterialArray"); }).get();
             var salidaCantidad     = $("input[name='salidaArray[]']").map(function ()     { return $(this).attr("data-cantidadSalida"); }).get();
 
             for (var a = 0; a < idEntradaDetalle.length; a++) {
                 var ic = salidaCantidad[a];
-                if (!ic)                       { colorRojoTabla(a); toastr.error('Fila #' + (a+1) + ' — Cantidad requerida');           return; }
-                if (!ic.match(reglaEntero))    { colorRojoTabla(a); toastr.error('Fila #' + (a+1) + ' — Debe ser entero positivo');     return; }
-                if (ic <= 0)                   { colorRojoTabla(a); toastr.error('Fila #' + (a+1) + ' — No puede ser cero o negativo'); return; }
-                if (ic > 1000000)              { colorRojoTabla(a); toastr.error('Fila #' + (a+1) + ' — Máximo 1,000,000');             return; }
+                if (!ic)                       { colorRojoTabla(a); toastr.error('Fila #' + (a+1) + ' — Cantidad requerida');                       return; }
+                if (!REGLA_DECIMAL.test(ic))   { colorRojoTabla(a); toastr.error('Fila #' + (a+1) + ' — Número inválido (máximo 2 decimales)');     return; }
+                if (redondear2(ic) <= 0)       { colorRojoTabla(a); toastr.error('Fila #' + (a+1) + ' — No puede ser cero o negativo');             return; }
+                if (redondear2(ic) > CANTIDAD_MAXIMA) { colorRojoTabla(a); toastr.error('Fila #' + (a+1) + ' — Máximo 1,000,000.00');              return; }
             }
 
             var contenedorArray = [];
@@ -661,7 +731,7 @@
                         Swal.fire({
                             title: 'Cantidad no disponible',
                             html:
-                                '<b>' + response.data.nombre_material + '</b><br><br>' +
+                                '<b>' + escapeHtml(response.data.nombre_material) + '</b><br><br>' +
                                 'Solicitado: <b>' + response.data.cantidad_pedida + '</b><br>' +
                                 'Disponible: <b>' + response.data.disponible + '</b>',
                             icon: 'warning',
@@ -676,7 +746,7 @@
                         Swal.fire({
                             title: 'Fecha inválida',
                             html:
-                                'El material <b>' + response.data.nombre_material + '</b> ' +
+                                'El material <b>' + escapeHtml(response.data.nombre_material) + '</b> ' +
                                 'tiene fecha de ingreso <b>' + response.data.fecha_ingreso + '</b>.<br><br>' +
                                 'La fecha de salida (<b>' + response.data.fecha_salida + '</b>) ' +
                                 'no puede ser anterior al ingreso.',
@@ -726,6 +796,7 @@
             $('#contador-filas').text(n + (n === 1 ? ' ítem' : ' ítems'));
         }
 
+        // Fila con error en la tabla de DETALLE (#matriz)
         function colorRojoTabla(index) {
             $("#matriz tr:eq(" + (index + 1) + ")").css('background', '#f8d7da');
         }
@@ -734,14 +805,27 @@
             $("#matriz tbody tr").css('background', 'white');
         }
 
+        // Fila con error en la tabla del MODAL de cantidades (#matrizM)
+        function colorRojoModal(index) {
+            $("#matrizM tbody tr:eq(" + index + ")").css('background', '#f8d7da');
+        }
+
+        function colorLimpiarModal() {
+            $("#matrizM tbody tr").css('background', '');
+        }
+
+        // Cantidad de salida: decimales (máx. 2), tope = min(cantidad actual, 1,000,000)
         function validateCantidadSalida(input, maxCantidad) {
-            input.value = input.value.replace(/[^0-9]/g, '');
-            if (Number(input.value) > maxCantidad) input.value = maxCantidad;
+            input.value = sanitizarDecimal(input.value);
+
+            var limite = Math.min(Number(maxCantidad), CANTIDAD_MAXIMA);
+            if (Number(input.value) > limite) {
+                input.value = String(redondear2(limite));
+            }
         }
 
         function validateCantidadMaxReemplazo(input, maxCantidad) {
-            input.value = input.value.replace(/[^0-9]/g, '');
-            if (Number(input.value) > maxCantidad) input.value = maxCantidad;
+            validateCantidadSalida(input, maxCantidad);
         }
 
 

@@ -202,14 +202,27 @@ class SalidasController extends Controller
             return ['success' => 3]; // proyecto cerrado
         }
 
-        // ✅ Agrupar por id_entrada_detalle y sumar cantidades del mismo lote
+        // ✅ Agrupar por id_entrada_detalle y sumar cantidades del mismo lote (con 2 decimales)
         $agrupado = [];
         foreach ($contenedor as $item) {
-            $id = $item['infoIdEntradaDeta'];
+            $id       = $item['infoIdEntradaDeta'] ?? null;
+            $cantidad = $item['infoCantidad'] ?? null;
+
+            // Validar en servidor: número con máximo 2 decimales, > 0 y <= 1,000,000
+            if (
+                !$id ||
+                !is_scalar($cantidad) ||
+                !preg_match('/^\d+(\.\d{1,2})?$/', (string) $cantidad) ||
+                (float) $cantidad <= 0 ||
+                (float) $cantidad > 1000000
+            ) {
+                return ['success' => 0];
+            }
+
             if (!isset($agrupado[$id])) {
                 $agrupado[$id] = 0;
             }
-            $agrupado[$id] += (int) $item['infoCantidad'];
+            $agrupado[$id] = round($agrupado[$id] + (float) $cantidad, 2);
         }
 
         DB::beginTransaction();
@@ -222,17 +235,20 @@ class SalidasController extends Controller
                 $disponible = DB::table('entradas_detalle as ed')
                     ->leftJoin(
                         DB::raw('(
-                SELECT id_entrada_detalle, SUM(cantidad_salida) as total_salido
-                FROM salidas_detalle
-                GROUP BY id_entrada_detalle
-            ) as sd'),
+                        SELECT id_entrada_detalle, SUM(cantidad_salida) as total_salido
+                        FROM salidas_detalle
+                        GROUP BY id_entrada_detalle
+                    ) as sd'),
                         'sd.id_entrada_detalle', '=', 'ed.id'
                     )
                     ->where('ed.id', $idEntradaDetalle)
                     ->selectRaw('(ed.cantidad_inicial - COALESCE(sd.total_salido, 0)) as disponible')
                     ->value('disponible');
 
-                if (is_null($disponible) || $cantidadSalida > $disponible) {
+                // Redondear ambos a 2 decimales para evitar errores de punto flotante
+                $disponibleRedondeado = is_null($disponible) ? null : round((float) $disponible, 2);
+
+                if (is_null($disponibleRedondeado) || round($cantidadSalida, 2) > $disponibleRedondeado) {
                     DB::rollback();
 
                     $nombreMaterial = DB::table('entradas_detalle as ed')
@@ -244,12 +260,12 @@ class SalidasController extends Controller
                         'success'         => 2,
                         'fila'            => $fila,
                         'nombre_material' => $nombreMaterial ?? 'Material desconocido',
-                        'cantidad_pedida' => $cantidadSalida,
-                        'disponible'      => (int) $disponible,
+                        'cantidad_pedida' => number_format($cantidadSalida, 2, '.', ''),
+                        'disponible'      => number_format($disponibleRedondeado ?? 0, 2, '.', ''),
                     ];
                 }
 
-                // ── 🆕 Validar que la fecha de salida no sea anterior a la fecha de ingreso ──
+                // ── Validar que la fecha de salida no sea anterior a la fecha de ingreso ──
                 $fechaIngreso = DB::table('entradas_detalle as ed')
                     ->join('entradas as e', 'e.id', '=', 'ed.id_entradas')
                     ->where('ed.id', $idEntradaDetalle)
@@ -270,7 +286,6 @@ class SalidasController extends Controller
                         'fecha_ingreso'    => Carbon::parse($fechaIngreso)->format('d-m-Y'),
                     ];
                 }
-                // ─────────────────────────────────────────────────────────────────────────
 
                 $fila++;
             }
@@ -282,16 +297,16 @@ class SalidasController extends Controller
             $salida->id_tipoproyecto = $request->proyecto;
             $salida->es_transferencia= 0;
             $salida->id_tipoproyecto_transferencia = null;
-            $salida->ficha_nombre = $request->fichaNombre;
+            $salida->ficha_nombre    = $request->fichaNombre;
             $salida->ficha_talonario = $request->fichaTalonario;
             $salida->save();
 
-            // ✅ Guardar detalle con cantidades agrupadas
+            // ✅ Guardar detalle con cantidades agrupadas (2 decimales)
             foreach ($agrupado as $idEntradaDetalle => $cantidadSalida) {
                 $detalle                      = new SalidasDetalle();
                 $detalle->id_salida           = $salida->id;
                 $detalle->id_entrada_detalle  = $idEntradaDetalle;
-                $detalle->cantidad_salida     = $cantidadSalida;
+                $detalle->cantidad_salida     = round($cantidadSalida, 2);
                 $detalle->save();
             }
 
@@ -304,9 +319,6 @@ class SalidasController extends Controller
             return ['success' => 99];
         }
     }
-
-
-
 
 
 

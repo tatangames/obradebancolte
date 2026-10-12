@@ -38,7 +38,7 @@ class RepuestosController extends Controller
     {
         $filtro = request('filtro', 'todos'); // 'todos' | 'sin_objeto'
 
-        $query = Materiales::with('objetoEspecifico')
+        $query = Materiales::with(['objetoEspecifico', 'unidadMedida'])
             ->orderBy('nombre', 'ASC');
 
         if ($filtro === 'sin_objeto') {
@@ -47,25 +47,27 @@ class RepuestosController extends Controller
 
         $lista = $query->get();
 
+        // Entradas totales por material (1 sola consulta)
+        $entradas = DB::table('entradas_detalle')
+            ->select('id_material', DB::raw('SUM(cantidad_inicial) as total'))
+            ->groupBy('id_material')
+            ->pluck('total', 'id_material');
+
+        // Salidas totales por material (1 sola consulta)
+        $salidas = DB::table('salidas_detalle as sd')
+            ->join('entradas_detalle as ed', 'ed.id', '=', 'sd.id_entrada_detalle')
+            ->select('ed.id_material', DB::raw('SUM(sd.cantidad_salida) as total'))
+            ->groupBy('ed.id_material')
+            ->pluck('total', 'id_material');
+
         foreach ($lista as $item) {
-            $medida = '';
-            if ($dataUnidad = UnidadMedida::where('id', $item->id_medida)->first()) {
-                $medida = $dataUnidad->nombre;
-            }
-            $item->medida = $medida;
+            $ent = round((float) ($entradas[$item->id] ?? 0), 2);
+            $sal = round((float) ($salidas[$item->id] ?? 0), 2);
 
-            $entradas = DB::table('entradas_detalle')
-                ->where('id_material', $item->id)
-                ->sum('cantidad_inicial');
-
-            $salidas = DB::table('salidas_detalle as sd')
-                ->join('entradas_detalle as ed', 'ed.id', '=', 'sd.id_entrada_detalle')
-                ->where('ed.id_material', $item->id)
-                ->sum('sd.cantidad_salida');
-
-            $item->total    = $entradas - $salidas;
-            $item->entradas = $entradas;
-            $item->salidas  = $salidas;
+            $item->medida   = optional($item->unidadMedida)->nombre ?? '';
+            $item->entradas = $ent;
+            $item->salidas  = $sal;
+            $item->total    = round($ent - $sal, 2);
 
             // Relación ya cargada con with()
             $item->objeto_especifico = $item->objetoEspecifico;
@@ -288,16 +290,17 @@ class RepuestosController extends Controller
         $entradas = EntradasDetalle::where('id_material', $idMaterial)
             ->with('entrada.tipoproyecto')
             ->get()
+            ->filter(fn($item) => $item->entrada) // evita error si falta la relación
             ->groupBy(fn($item) => $item->entrada->id_tipoproyecto)
             ->map(function ($grupo) {
 
                 // Total de unidades que entraron al proyecto (real + transferencia)
-                $entradasTotal = $grupo->sum('cantidad_inicial');
+                $entradasTotal = round((float) $grupo->sum('cantidad_inicial'), 2);
 
-                // Solo las que son ingreso REAL (no transferencia) — cuentan al total general
-                $entradasReales = $grupo
+                // Solo las que son ingreso REAL (no transferencia)
+                $entradasReales = round((float) $grupo
                     ->filter(fn($item) => ! $item->entrada->es_transferencia)
-                    ->sum('cantidad_inicial');
+                    ->sum('cantidad_inicial'), 2);
 
                 return [
                     'proyecto'        => $grupo->first()->entrada->tipoproyecto->nombre ?? '—',
@@ -306,43 +309,43 @@ class RepuestosController extends Controller
                 ];
             });
 
-        // Salidas por proyecto usando whereIn
+        // Salidas por proyecto
         $salidas = SalidasDetalle::whereIn('id_entrada_detalle', $idsEntradasDetalle)
-            ->with('salida.tipoproyecto')
+            ->with('salida')
             ->get()
+            ->filter(fn($item) => $item->salida) // evita error si falta la relación
             ->groupBy(fn($item) => $item->salida->id_tipoproyecto)
-            ->map(fn($grupo) => $grupo->sum('cantidad_salida'));
+            ->map(fn($grupo) => round((float) $grupo->sum('cantidad_salida'), 2));
 
-        // Combinar
-        $proyectos = $entradas->map(function ($dato, $idProyecto) use ($salidas) {
-            $sal = $salidas[$idProyecto] ?? 0;
+        // Combinar (TODOS los proyectos, sin filtrar todavía)
+        $todos = $entradas->map(function ($dato, $idProyecto) use ($salidas) {
+            $sal = (float) ($salidas[$idProyecto] ?? 0);
             return [
                 'proyecto'        => $dato['proyecto'],
                 'entradas'        => $dato['entradas'],
                 'entradas_reales' => $dato['entradas_reales'],
-                'salidas'         => $sal,
-                'disponible'      => $dato['entradas'] - $sal,
+                'salidas'         => round($sal, 2),
+                'disponible'      => round($dato['entradas'] - $sal, 2),
             ];
-        })
-            ->filter(fn($p) => $p['disponible'] != 0)  // ← solo los que tienen disponible
-            ->values();
+        })->values();
 
-        // ── Totales ───────────────────────────────────────────────
-        // El total general usa SOLO las entradas reales (el material físico
-        // que de verdad ingresó). Las transferencias no suman: es el mismo
-        // material moviéndose entre proyectos.
-        $totalEntradas   = $proyectos->sum('entradas_reales');
-        $totalSalidas    = $proyectos->sum('salidas');
+        // ── Totales (se calculan ANTES de filtrar) ────────────────
+        // El total general usa SOLO las entradas reales: las transferencias
+        // son el mismo material moviéndose entre proyectos.
+        $totalEntradas = round((float) $todos->sum('entradas_reales'), 2);
+        $totalSalidas  = round((float) $todos->sum('salidas'), 2);
 
-        // Salidas por transferencia (las que salieron hacia otro proyecto)
-        // no son consumo real, así que el disponible global es entradas
-        // reales menos las salidas que NO son transferencia.
-        $salidasReales = SalidasDetalle::whereIn('id_entrada_detalle', $idsEntradasDetalle)
+        // Salidas que NO son transferencia (consumo real)
+        $salidasReales = round((float) SalidasDetalle::whereIn('id_entrada_detalle', $idsEntradasDetalle)
             ->whereHas('salida', fn($q) => $q->where('es_transferencia', 0))
-            ->get()
-            ->sum('cantidad_salida');
+            ->sum('cantidad_salida'), 2);
 
-        $totalDisponible = $totalEntradas - $salidasReales;
+        $totalDisponible = round($totalEntradas - $salidasReales, 2);
+
+        // ── Listado: solo proyectos con disponible ────────────────
+        $proyectos = $todos
+            ->filter(fn($p) => $p['disponible'] != 0)
+            ->values();
 
         return response()->json([
             'success'   => 1,
@@ -354,7 +357,6 @@ class RepuestosController extends Controller
             ],
         ]);
     }
-
 
 
 

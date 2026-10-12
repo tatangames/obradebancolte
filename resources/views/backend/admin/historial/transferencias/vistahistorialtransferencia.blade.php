@@ -263,7 +263,7 @@
                             No queda material disponible para devolver — todo fue usado o reservado.
                         </div>
                         <small class="text-muted d-block mb-2">
-                            Escribe la cantidad que deseas devolver en cada fila (puede ser parcial).
+                            Escribe la cantidad que deseas devolver en cada fila (puede ser parcial, hasta 2 decimales).
                             No puede superar el valor de "Disponible".
                         </small>
                         <button type="button" class="btn btn-success btn-sm" id="btn-devolver" style="display:none;">
@@ -426,6 +426,77 @@
     </script>
 
     <script>
+        // ── Constantes y utilidades de cantidad ───────────────────────────
+        var CANTIDAD_MAXIMA = 1000000;               // máximo permitido por devolución
+        var REGLA_DECIMAL   = /^\d+(\.\d{1,2})?$/;   // entero o hasta 2 decimales
+
+        // Redondea a 2 decimales evitando errores de punto flotante
+        function redondear2(n) {
+            return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+        }
+
+        // Redondea a 4 decimales (precios y subtotales de este historial usan 4)
+        function redondear4(n) {
+            return Math.round((Number(n) + Number.EPSILON) * 10000) / 10000;
+        }
+
+        // Cantidades siempre con 2 decimales y separador de miles (1,250.50)
+        function formatoCantidad(n) {
+            return redondear2(n || 0).toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+        }
+
+        // Deja solo dígitos y un punto, con máximo 2 decimales
+        function sanitizarDecimal(valor) {
+            valor = String(valor).replace(/[^0-9.]/g, '');
+
+            var partes = valor.split('.');
+            if (partes.length > 2) {
+                valor = partes[0] + '.' + partes.slice(1).join('');
+                partes = valor.split('.');
+            }
+            if (partes.length === 2) {
+                valor = partes[0] + '.' + partes[1].substring(0, 2);
+            }
+            return valor;
+        }
+
+        // Normaliza lo escrito: ".5" → "0.5"  |  "5." → "5"  |  "." → ""
+        function normalizarCantidad(valor) {
+            valor = String(valor ?? '').trim();
+            if (valor === '' || valor === '.') return '';
+            if (valor.charAt(0) === '.') valor = '0' + valor;
+            if (valor.charAt(valor.length - 1) === '.') valor = valor.slice(0, -1);
+            return valor;
+        }
+
+        // Escapa texto para meterlo de forma segura dentro de HTML
+        function escapeHtml(texto) {
+            return String(texto ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        // Validar teclas numéricas (permite un solo punto decimal)
+        function validateInput(event) {
+            if (event.ctrlKey || event.metaKey) return true; // copiar / pegar / seleccionar todo
+
+            const key = event.key;
+            if (["Backspace","ArrowLeft","ArrowRight","Delete","Tab","Home","End","Enter"].includes(key)) return true;
+
+            if (key === ".") {
+                return event.target.value.indexOf('.') === -1;
+            }
+
+            if (key === "e" || key === "E" || key === "-" || key === " " || isNaN(Number(key))) return false;
+            return true;
+        }
+
         // ── Detalle ───────────────────────────────────────────────
         function verDetalle(id, proyecto, fecha, documento, descripcion) {
             $('#detalle-proyecto').text(proyecto);
@@ -466,23 +537,25 @@
                         let total = 0;
 
                         response.data.detalle.forEach((fila, index) => {
-                            const precio = parseFloat(fila.precio);
-                            const cantidad = parseInt(fila.cantidad_sobrante);
-                            const subtotal = precio * cantidad;
+                            const precio   = parseFloat(fila.precio) || 0;
+                            // parseFloat (antes parseInt): parseInt truncaba 5.75 a 5
+                            // y además deformaba el subtotal y el total estimado.
+                            const cantidad = redondear2(fila.cantidad_sobrante);
+                            const subtotal = redondear4(precio * cantidad);
 
-                            total += subtotal;
+                            total = redondear4(total + subtotal);
 
                             html += `
                 <tr>
                     <td>${index + 1}</td>
-                    <td>${fila.nombre_material}</td>
+                    <td>${escapeHtml(fila.nombre_material)}</td>
                     <td>
                         <small class="text-muted">
-                            ${fila.objeto_especifico}
+                            ${escapeHtml(fila.objeto_especifico)}
                         </small>
                     </td>
-                    <td class="text-center">${cantidad}</td>
-                    <td class="text-right">$${fila.precio}</td>
+                    <td class="text-center">${formatoCantidad(cantidad)}</td>
+                    <td class="text-right">$${escapeHtml(fila.precio)}</td>
                     <td class="text-right">$${subtotal.toFixed(4)}</td>
                 </tr>`;
                         });
@@ -509,14 +582,14 @@
             Swal.fire({
                 title: '¿Eliminar transferencia?',
                 text: 'Se eliminarán también todos los materiales del detalle. Esta acción no se puede deshacer.',
-                type: 'warning',
+                icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#d33',
                 cancelButtonColor: '#6c757d',
                 confirmButtonText: 'Sí, eliminar',
                 cancelButtonText: 'Cancelar'
             }).then((result) => {
-                if (result.value) {
+                if (result.isConfirmed) {
                     openLoading();
                     axios.post(urlAdmin + '/admin/historial/transferencias/eliminar', { id: id })
                         .then((response) => {
@@ -534,10 +607,10 @@
                                     Swal.fire({
                                         title: 'No se puede eliminar',
                                         html: 'El material <b>' +
-                                            (response.data.nombre_material || '—') +
+                                            escapeHtml(response.data.nombre_material || '—') +
                                             '</b> ya fue usado o reservado en el proyecto destino.<br><br>' +
                                             'Debe revertir esos movimientos antes de eliminar la transferencia.',
-                                        type: 'warning',
+                                        icon: 'warning',
                                         confirmButtonColor: '#d33',
                                         confirmButtonText: 'Entendido'
                                     });
@@ -603,11 +676,11 @@
                     usos.forEach((fila) => {
                         html += `
                 <tr>
-                    <td>${fila.material}</td>
-                    <td class="text-center">${fila.cantidad}</td>
-                    <td>${fila.ficha}</td>
-                    <td>${fila.talonario}</td>
-                    <td>${fila.fecha}</td>
+                    <td>${escapeHtml(fila.material)}</td>
+                    <td class="text-center">${formatoCantidad(fila.cantidad)}</td>
+                    <td>${escapeHtml(fila.ficha)}</td>
+                    <td>${escapeHtml(fila.talonario)}</td>
+                    <td>${escapeHtml(fila.fecha)}</td>
                 </tr>`;
                     });
 
@@ -631,25 +704,25 @@
                         let htmlMat = '';
                         materiales.forEach((m) => {
                             // Verificación: disponible = transferido - usado - reservado (calculado en backend)
-                            const disponible = parseFloat(m.disponible) || 0;
+                            const disponible = redondear2(m.disponible);
                             // Requerido para el envío al backend. Se aceptan varios nombres
                             // por si el endpoint /uso lo devuelve con otra llave.
                             const idMaterial = m.id_material ?? m.material_id ?? m.id ?? '';
 
                             htmlMat += `
-                    <tr data-id-material="${idMaterial}" data-disponible="${disponible}">
-                        <td>${m.material}</td>
-                        <td class="text-center">${m.cantidad_original}</td>
-                        <td class="text-center">${m.cantidad_usada}</td>
-                        <td class="text-center">${m.cantidad_reservada}</td>
-                        <td class="text-center font-weight-bold text-success">${disponible}</td>
+                    <tr data-id-material="${escapeHtml(idMaterial)}" data-disponible="${disponible.toFixed(2)}">
+                        <td>${escapeHtml(m.material)}</td>
+                        <td class="text-center">${formatoCantidad(m.cantidad_original)}</td>
+                        <td class="text-center">${formatoCantidad(m.cantidad_usada)}</td>
+                        <td class="text-center">${formatoCantidad(m.cantidad_reservada)}</td>
+                        <td class="text-center font-weight-bold text-success">${formatoCantidad(disponible)}</td>
                         <td class="text-center">
-                            <input type="number"
+                            <input type="text"
                                    class="form-control form-control-sm input-cantidad-devolver"
-                                   min="0"
-                                   max="${disponible}"
-                                   step="1"
-                                   placeholder="0"
+                                   inputmode="decimal"
+                                   maxlength="10"
+                                   autocomplete="off"
+                                   placeholder="0.00"
                                    ${disponible <= 0 ? 'disabled' : ''}>
                         </td>
                     </tr>`;
@@ -670,21 +743,25 @@
                 });
         }
 
-        // Valida en vivo que la cantidad escrita no supere el disponible de la fila
-        $(document).on('input', '.input-cantidad-devolver', function () {
-            const $input = $(this);
-            const $row = $input.closest('tr');
-            const disponible = parseFloat($row.data('disponible')) || 0;
-            let valor = parseFloat($input.val());
-
-            if (isNaN(valor) || valor < 0) {
-                $input.removeClass('is-invalid');
-                return;
+        // Teclas permitidas en "Cantidad a devolver" (números y un solo punto)
+        $(document).on('keydown', '.input-cantidad-devolver', function (e) {
+            if (!validateInput(e.originalEvent)) {
+                e.preventDefault();
             }
+        });
 
-            if (valor > disponible) {
-                $input.val(disponible);
-                toastr.warning('No puede devolver más de lo disponible (' + disponible + ')');
+        // Valida en vivo: solo decimales (máx. 2) y sin superar el disponible de la fila
+        $(document).on('input', '.input-cantidad-devolver', function () {
+            const $input     = $(this);
+            const $row       = $input.closest('tr');
+            const disponible = redondear2($row.attr('data-disponible'));
+
+            $input.val(sanitizarDecimal($input.val()));
+
+            const limite = Math.min(disponible, CANTIDAD_MAXIMA);
+            if (Number($input.val()) > limite) {
+                $input.val(String(redondear2(limite)));
+                toastr.warning('No puede devolver más de lo disponible (' + formatoCantidad(limite) + ')');
             }
         });
 
@@ -696,19 +773,28 @@
             }
 
             const items = [];
-            let huboError = false;
-
+            let mensajeError = '';
             let faltaIdMaterial = false;
 
             $('#uso-disponible-tbody tr').each(function () {
                 const $row = $(this);
-                const idMaterialRaw = $row.data('id-material');
-                const idMaterial = parseInt(idMaterialRaw, 10);
-                const disponible = parseFloat($row.data('disponible')) || 0;
-                const cantidad = parseFloat($row.find('.input-cantidad-devolver').val());
+                const idMaterial = parseInt($row.attr('data-id-material'), 10);
+                const disponible = redondear2($row.attr('data-disponible'));
+                const cantidadTxt = normalizarCantidad($row.find('.input-cantidad-devolver').val());
 
-                if (!cantidad || cantidad <= 0) {
+                if (cantidadTxt === '') {
                     return; // fila sin cantidad a devolver, se omite
+                }
+
+                if (!REGLA_DECIMAL.test(cantidadTxt)) {
+                    mensajeError = 'Hay una cantidad inválida (máximo 2 decimales). Corrígela antes de continuar.';
+                    return;
+                }
+
+                const cantidad = redondear2(cantidadTxt);
+
+                if (cantidad <= 0) {
+                    return; // cero equivale a no devolver
                 }
 
                 if (isNaN(idMaterial)) {
@@ -716,14 +802,19 @@
                     return;
                 }
 
+                if (cantidad > CANTIDAD_MAXIMA) {
+                    mensajeError = 'La cantidad máxima por devolución es 1,000,000.00.';
+                    return;
+                }
+
                 if (cantidad > disponible) {
-                    huboError = true;
+                    mensajeError = 'Hay una cantidad que supera lo disponible. Corrígela antes de continuar.';
                     return;
                 }
 
                 items.push({
                     id_material: idMaterial,
-                    cantidad: cantidad
+                    cantidad: cantidad.toFixed(2)   // siempre con 2 decimales
                 });
             });
 
@@ -732,8 +823,8 @@
                 return;
             }
 
-            if (huboError) {
-                toastr.error('Hay una cantidad que supera lo disponible. Corrígela antes de continuar.');
+            if (mensajeError) {
+                toastr.error(mensajeError);
                 return;
             }
 
@@ -745,14 +836,14 @@
             Swal.fire({
                 title: '¿Confirmar devolución?',
                 text: 'Se devolverá el material seleccionado al proyecto de origen.',
-                type: 'question',
+                icon: 'question',
                 showCancelButton: true,
                 confirmButtonColor: '#28a745',
                 cancelButtonColor: '#6c757d',
                 confirmButtonText: 'Sí, devolver',
                 cancelButtonText: 'Cancelar'
             }).then((result) => {
-                if (!result.value) return;
+                if (!result.isConfirmed) return;
 
                 openLoading();
                 axios.post(urlAdmin + '/admin/historial/transferencias/devolver', {
@@ -781,10 +872,10 @@
                                 Swal.fire({
                                     title: 'Cantidad no disponible',
                                     html: 'La cantidad a devolver de <b>' +
-                                        (response.data.nombre_material || '—') +
+                                        escapeHtml(response.data.nombre_material || '—') +
                                         '</b> supera lo disponible (' +
-                                        (response.data.disponible ?? '—') + ').',
-                                    type: 'warning',
+                                        escapeHtml(response.data.disponible ?? '—') + ').',
+                                    icon: 'warning',
                                     confirmButtonText: 'Entendido'
                                 });
                                 // Refrescar por si el disponible cambió entre tanto

@@ -164,9 +164,12 @@
                                 </div>
 
                                 <div class="form-group">
-                                    <label class="control-label">Cantidad <span style="color: red">*</span></label>
+                                    <label class="control-label">Cantidad (2 decimales máximo) <span style="color: red">*</span></label>
                                     <div class="col-md-6">
-                                        <input type="number" id="cantidad" min="0" max="1000000" class='form-control' autocomplete="off" placeholder="0">
+                                        <input type="text" id="cantidad" inputmode="decimal" maxlength="10"
+                                               class='form-control' autocomplete="off" placeholder="0.00"
+                                               onkeydown="return validateInput(event);"
+                                               oninput="validateCantidadInput(this);">
                                     </div>
                                 </div>
 
@@ -287,11 +290,52 @@
 
     <script>
 
-        document.getElementById('cantidad').addEventListener('keypress', function (event) {
-            if (event.key < '0' || event.key > '9') {
-                event.preventDefault();
+        // ── Constantes de cantidad ────────────────────────────────────────
+        var CANTIDAD_MAXIMA = 1000000;               // máximo permitido por entrada
+        var REGLA_CANTIDAD  = /^\d+(\.\d{1,2})?$/;   // entero o hasta 2 decimales
+
+        // Redondea a 2 decimales evitando errores de punto flotante
+        function redondear2(n) {
+            return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+        }
+
+        // Deja solo dígitos y un punto, con máximo 2 decimales
+        function sanitizarDecimal(valor) {
+            valor = String(valor).replace(/[^0-9.]/g, '');
+
+            var partes = valor.split('.');
+            if (partes.length > 2) {
+                valor = partes[0] + '.' + partes.slice(1).join('');
+                partes = valor.split('.');
             }
-        });
+            if (partes.length === 2) {
+                valor = partes[0] + '.' + partes[1].substring(0, 2);
+            }
+            return valor;
+        }
+
+        // Validar teclas (permite un solo punto decimal)
+        function validateInput(event) {
+            if (event.ctrlKey || event.metaKey) return true; // copiar / pegar / seleccionar todo
+
+            const key = event.key;
+            if (["Backspace","ArrowLeft","ArrowRight","Delete","Tab","Home","End","Enter"].includes(key)) return true;
+
+            if (key === ".") {
+                return event.target.value.indexOf('.') === -1;
+            }
+
+            if (key === "e" || key === "E" || key === "-" || key === " " || isNaN(Number(key))) return false;
+            return true;
+        }
+
+        // Limpia el input de cantidad y respeta el máximo de 1,000,000
+        function validateCantidadInput(input) {
+            input.value = sanitizarDecimal(input.value);
+            if (Number(input.value) > CANTIDAD_MAXIMA) {
+                input.value = String(CANTIDAD_MAXIMA);
+            }
+        }
 
         function abrirModal(){
             document.getElementById("formulario-repuesto").reset();
@@ -311,7 +355,6 @@
                 return;
             }
 
-            var reglaNumeroEntero = /^[0-9]\d*$/;
             var reglaNumeroDiesDecimal = /^([0-9]+\.?[0-9]{0,10})$/;
 
             if(cantidad === ''){
@@ -319,20 +362,23 @@
                 return;
             }
 
-            if(!cantidad.match(reglaNumeroEntero)) {
-                toastr.error('Cantidad debe ser número entero y no Negativo');
+            if(!REGLA_CANTIDAD.test(cantidad)) {
+                toastr.error('Cantidad debe ser número válido, máximo 2 decimales y no negativo');
                 return;
             }
 
-            if(cantidad <= 0){
+            if(redondear2(cantidad) <= 0){
                 toastr.error('Cantidad no debe ser negativo o cero');
                 return;
             }
 
-            if(cantidad > 1000000){
+            if(redondear2(cantidad) > CANTIDAD_MAXIMA){
                 toastr.error('Cantidad máximo 1 millón');
                 return;
             }
+
+            // Normalizar siempre a 2 decimales
+            var cantidadFormato = redondear2(cantidad).toFixed(2);
 
             if(precioProducto === ''){
                 toastr.error('Precio Producto es requerido');
@@ -368,7 +414,7 @@
                 "</td>" +
 
                 "<td>" +
-                "<input name='cantidadArray[]' disabled value='" + cantidad + "' class='form-control' type='number'>" +
+                "<input name='cantidadArray[]' disabled data-cantidad='" + cantidadFormato + "' value='" + cantidadFormato + "' class='form-control' type='text'>" +
                 "</td>" +
 
                 "<td>" +
@@ -481,7 +527,6 @@
                 return;
             }
 
-            var reglaNumeroEntero = /^[0-9]\d*$/;
             var nRegistro = $('#matriz > tbody >tr').length;
 
             if (nRegistro <= 0){
@@ -490,7 +535,7 @@
             }
 
             var descripcionAtributo = $("input[name='descripcionArray[]']").map(function(){return $(this).attr("data-info");}).get();
-            var cantidad = $("input[name='cantidadArray[]']").map(function(){return $(this).val();}).get();
+            var cantidad = $("input[name='cantidadArray[]']").map(function(){return $(this).attr("data-cantidad");}).get();
             var codigo = $("input[name='codigoArray[]']").map(function(){return $(this).val();}).get();
             var arrayPrecio = $("input[name='arrayPrecio[]']").map(function(){return $(this).attr("data-precio");}).get();
 
@@ -508,25 +553,25 @@
                     return;
                 }
 
-                if (datoCantidad === '') {
+                if (!datoCantidad) {
                     colorRojoTabla(a);
                     toastr.error('Fila #' + (a + 1) + ' Cantidad es requerida');
                     return;
                 }
 
-                if (!datoCantidad.match(reglaNumeroEntero)) {
+                if (!REGLA_CANTIDAD.test(datoCantidad)) {
                     colorRojoTabla(a);
-                    toastr.error('Fila #' + (a + 1) + ' Cantidad debe ser Entero y no negativo');
+                    toastr.error('Fila #' + (a + 1) + ' Cantidad debe ser número válido (máximo 2 decimales) y no negativo');
                     return;
                 }
 
-                if (datoCantidad <= 0) {
+                if (redondear2(datoCantidad) <= 0) {
                     colorRojoTabla(a);
-                    toastr.error('Fila #' + (a + 1) + ' Cantidad no debe ser negativo');
+                    toastr.error('Fila #' + (a + 1) + ' Cantidad no debe ser negativo o cero');
                     return;
                 }
 
-                if (datoCantidad > 1000000) {
+                if (redondear2(datoCantidad) > CANTIDAD_MAXIMA) {
                     colorRojoTabla(a);
                     toastr.error('Fila #' + (a + 1) + ' Cantidad máximo 1 millón');
                     return;

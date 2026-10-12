@@ -280,6 +280,25 @@
         var filtroActual = 'todos';
         var rutaTabla    = "{{ url('/admin/inventario/tabla/index') }}";
 
+        // ── Utilidades de formato ─────────────────────────────────────
+        // Muestra cantidades siempre con 2 decimales y separador de miles (1,250.50)
+        function formatoCantidad(n) {
+            return Number(n || 0).toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+        }
+
+        // Escapa texto para meterlo de forma segura dentro de HTML
+        function escapeHtml(texto) {
+            return String(texto ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
         // ── DataTable ─────────────────────────────────────────────────
         function initDataTable() {
             if ($.fn.DataTable.isDataTable('#tabla')) {
@@ -455,7 +474,7 @@
                         $.each(response.data.unidad, function (key, val) {
                             var sel = response.data.material.id_medida == val.id ? ' selected' : '';
                             $('#select-unidad-editar').append(
-                                '<option value="' + val.id + '"' + sel + '>' + val.nombre + '</option>'
+                                '<option value="' + val.id + '"' + sel + '>' + escapeHtml(val.nombre) + '</option>'
                             );
                         });
                         $('#select-unidad-editar').trigger('change');
@@ -467,7 +486,7 @@
                             if (val.cuenta) { label += ' (' + val.cuenta.nombre + ')'; }
                             var sel = response.data.material.id_objespecifico == val.id ? ' selected' : '';
                             $('#select-objeto-editar').append(
-                                '<option value="' + val.id + '"' + sel + '>' + label + '</option>'
+                                '<option value="' + val.id + '"' + sel + '>' + escapeHtml(label) + '</option>'
                             );
                         });
                         $('#select-objeto-editar').trigger('change');
@@ -546,20 +565,15 @@
                     $('#proyectos-loading').hide();
                     if (response.data.success === 1 && response.data.proyectos.length > 0) {
                         let html = '';
-                        let totalEntradas = 0, totalSalidas = 0, totalDisponible = 0;
 
                         response.data.proyectos.forEach((fila, index) => {
-                            totalEntradas   += fila.entradas;
-                            totalSalidas    += fila.salidas;
-                            totalDisponible += fila.disponible;
-
                             html += `
                                 <tr>
                                     <td>${index + 1}</td>
-                                    <td>${fila.proyecto}</td>
-                                    <td class="text-center">${fila.entradas}</td>
-                                    <td class="text-center">${fila.salidas}</td>
-                                    <td class="text-center"><strong>${fila.disponible}</strong></td>
+                                    <td>${escapeHtml(fila.proyecto)}</td>
+                                    <td class="text-center">${formatoCantidad(fila.entradas)}</td>
+                                    <td class="text-center">${formatoCantidad(fila.salidas)}</td>
+                                    <td class="text-center"><strong>${formatoCantidad(fila.disponible)}</strong></td>
                                 </tr>`;
                         });
 

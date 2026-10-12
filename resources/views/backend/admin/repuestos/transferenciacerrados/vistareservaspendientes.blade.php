@@ -356,6 +356,42 @@
         var opcionesProyecto   = "";
         var _payloadDespachos  = null;
 
+        // ── Utilidades de formato ─────────────────────────────────────────
+
+        // Redondea a 2 decimales evitando errores de punto flotante
+        function redondear2(n) {
+            return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+        }
+
+        // Cantidades y montos siempre con 2 decimales y separador de miles (1,250.50)
+        function formatoCantidad(n) {
+            return redondear2(n || 0).toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+        }
+
+        // Escapa texto para meterlo de forma segura dentro de HTML / atributos
+        function escapeHtml(texto) {
+            return String(texto ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        // Fecha dd/mm/aaaa tomando la parte de fecha tal cual viene (YYYY-MM-DD).
+        // new Date('2026-10-12') se interpreta como UTC y en El Salvador (UTC-6)
+        // mostraría el día anterior.
+        function formatoFecha(valor) {
+            if (!valor) return '—';
+            var m = String(valor).match(/^(\d{4})-(\d{2})-(\d{2})/);
+            if (m) return m[3] + '/' + m[2] + '/' + m[1];
+            var d = new Date(valor);
+            return isNaN(d) ? '—' : d.toLocaleDateString('es-SV');
+        }
+
         $(document).ready(function () {
             document.getElementById("divcontenedor").style.display = "block";
 
@@ -363,7 +399,7 @@
 
             opcionesProyecto = "<option value='0' disabled selected>Seleccionar proyecto…</option>";
             $.each(proyectosActivos, function (i, p) {
-                opcionesProyecto += "<option value='" + p.id + "'>" + p.nombre + "</option>";
+                opcionesProyecto += "<option value='" + p.id + "'>" + escapeHtml(p.nombre) + "</option>";
             });
 
             $('#acta-departamento').select2({
@@ -426,13 +462,13 @@
                 indiceGrupo++;
                 var gid = 'grupo-' + indiceGrupo;
 
+                // El total del grupo suma los montos ya redondeados por fila,
+                // para que coincida con lo que se ve en la tabla.
                 var totalGrupo = 0;
                 $.each(reservasGrupo, function (j, r) {
-                    totalGrupo += parseFloat(r.precio ?? 0) * parseFloat(r.cantidad ?? 0);
+                    totalGrupo += redondear2(parseFloat(r.precio ?? 0) * parseFloat(r.cantidad ?? 0));
                 });
-                var totalGrupoFmt = totalGrupo.toLocaleString('es-SV', {
-                    minimumFractionDigits: 2, maximumFractionDigits: 2
-                });
+                var totalGrupoFmt = formatoCantidad(totalGrupo);
 
                 // ── Fila cabecera de grupo ───────────────────────────────
                 $('#tbodyReservas').append(
@@ -445,7 +481,7 @@
                     "<i class='fas fa-chevron-down'></i></button>" +
                     "<input type='checkbox' class='chk-grupo' data-gid='" + gid + "' " +
                     "onclick=\"toggleSeleccionGrupo('" + gid + "', this)\" style='margin:0 4px'>" +
-                    "<span class='grupo-titulo'><i class='fas fa-folder-open mr-1'></i>" + nombreProyecto + "</span>" +
+                    "<span class='grupo-titulo'><i class='fas fa-folder-open mr-1'></i>" + escapeHtml(nombreProyecto) + "</span>" +
                     "<span class='grupo-contador'>" + reservasGrupo.length + "</span>" +
                     "<span style='margin-left:6px; font-size:12px; color:#6f42c1; font-weight:700'>Total: $" + totalGrupoFmt + "</span>" +
                     "<span class='badge-grupo' id='badge-" + gid + "' style='display:none'>" +
@@ -470,36 +506,35 @@
 
                 // ── Filas de reservas del grupo ──────────────────────────
                 $.each(reservasGrupo, function (j, r) {
-                    var fechaFmt = r.fecha_reserva
-                        ? new Date(r.fecha_reserva).toLocaleDateString('es-SV')
-                        : '—';
+                    var fechaFmt = formatoFecha(r.fecha_reserva);
 
+                    var cantidad = redondear2(parseFloat(r.cantidad ?? 0));
                     var precio   = parseFloat(r.precio ?? 0);
-                    var montoFmt = (precio * parseFloat(r.cantidad ?? 0)).toLocaleString('es-SV', {
-                        minimumFractionDigits: 2, maximumFractionDigits: 2
-                    });
+                    var montoFmt = formatoCantidad(precio * cantidad);
 
                     var opcionesDestino =
                         "<option value=''>— Elegir destino —</option>" +
                         "<option value='proyecto'>Transferir a Proyecto</option>" +
                         "<option value='liberar'>Quitar de Reservas (cancelar)</option>";
 
-                    // ── CAMBIO CLAVE: data-id-entrada-detalle en el <tr> ──
+                    // data-cantidad guarda el valor crudo con 2 decimales (sin separador
+                    // de miles) para enviarlo al PDF; la celda muestra el valor formateado.
                     $('#tbodyReservas').append(
                         "<tr data-id='" + r.id + "' " +
                         "data-id-entrada-detalle='" + (r.id_entrada_detalle ?? '') + "' " +
+                        "data-cantidad='" + cantidad.toFixed(2) + "' " +
                         "class='fila-reserva' data-grupo='" + gid + "'>" +
                         "<td style='text-align:center'>" +
                         "<input type='checkbox' class='chk-reserva' " +
                         "data-grupo='" + gid + "' data-id='" + r.id + "' " +
                         "onchange=\"onCambioFilaCheckbox('" + gid + "')\">" +
                         "</td>" +
-                        "<td style='font-size:12px'>" + (r.nombre_material ?? '—') + "</td>" +
-                        "<td style='font-size:12px'>" + (r.nombre_proyecto_origen ?? '—') + "</td>" +
-                        "<td style='text-align:center; font-weight:700'>" + r.cantidad + "</td>" +
+                        "<td style='font-size:12px'>" + escapeHtml(r.nombre_material ?? '—') + "</td>" +
+                        "<td style='font-size:12px'>" + escapeHtml(r.nombre_proyecto_origen ?? '—') + "</td>" +
+                        "<td style='text-align:center; font-weight:700'>" + formatoCantidad(cantidad) + "</td>" +
                         "<td style='text-align:right; font-weight:700; font-size:12px'>$" + montoFmt + "</td>" +
                         "<td style='font-size:12px'>" + fechaFmt + "</td>" +
-                        "<td style='font-size:12px'>" + (r.descripcion ?? '—') + "</td>" +
+                        "<td style='font-size:12px'>" + escapeHtml(r.descripcion ?? '—') + "</td>" +
                         "<td>" +
                         "<select class='destino-select select-tipo' style='width:100%' " +
                         "onchange=\"cambiarTipoDestino(this, " + r.id + ", '" + gid + "')\">" +
@@ -587,6 +622,13 @@
             var valor       = $(selectEl).val();
             var gproySelect = $('#gproy-' + gid);
 
+            // "— Elegir destino —": solo oculta el selector de proyecto y no
+            // marca nada (antes marcaba todas las filas con destino vacío).
+            if (!valor) {
+                gproySelect.hide().val('0');
+                return;
+            }
+
             if (valor === 'proyecto') {
                 gproySelect.show();
             } else {
@@ -599,8 +641,6 @@
                 $(".chk-grupo[data-gid='" + gid + "']").prop('checked', true);
                 actualizarBadgeGrupo(gid);
             }
-
-            if (!valor) return;
 
             if (valor === 'proyecto') {
                 $(".fila-reserva[data-grupo='" + gid + "']").each(function () {
@@ -727,14 +767,15 @@
                 return;
             }
 
-            // ── CAMBIO CLAVE: leer id_entrada_detalle desde el data attribute ──
+            // La cantidad se toma de data-cantidad (valor crudo "1250.50"), no del
+            // texto de la celda, que ahora lleva separador de miles ("1,250.50").
             var materiales = [];
             $('.chk-reserva:checked').each(function () {
                 var fila = $(this).closest('tr');
                 if (fila.find('.select-tipo').val() === 'proyecto') {
                     materiales.push({
                         nombre:             fila.find('td:eq(1)').text().trim(),
-                        cantidad:           fila.find('td:eq(3)').text().trim(),
+                        cantidad:           fila.attr('data-cantidad'),
                         id_entrada_detalle: fila.data('id-entrada-detalle') || null
                     });
                 }

@@ -21,7 +21,7 @@
                                     <td>{{ $dato->codigo }}</td>
                                     <td>{{ $dato->nombre }}</td>
                                     <td>{{ $dato->medida }}</td>
-                                    <td>{{ $dato->total }}</td>
+                                    <td data-order="{{ $dato->total }}">{{ number_format($dato->total, 2) }}</td>
                                     <td>
                                         @if($dato->objeto_especifico)
                                             <span class="badge badge-success">
@@ -33,7 +33,8 @@
                                     </td>
                                     <td>
                                         <button type="button" style="margin: 2px" class="btn btn-info btn-xs"
-                                                onclick="verProyectos({{ $dato->id }}, '{{ addslashes($dato->nombre) }}')">
+                                                data-nombre="{{ $dato->nombre }}"
+                                                onclick="verProyectos({{ $dato->id }}, this.dataset.nombre)">
                                             <i class="fas fa-map-marker-alt"></i> Distribución
                                         </button>
                                         <button type="button" style="margin: 2px" class="btn btn-primary btn-xs"

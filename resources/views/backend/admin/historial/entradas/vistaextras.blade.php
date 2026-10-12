@@ -119,10 +119,12 @@
                                     </table>
                                 </div>
                                 <div class="form-group">
-                                    <label>Cantidad <span style="color:red">*</span></label>
+                                    <label>Cantidad (2 decimales máximo) <span style="color:red">*</span></label>
                                     <div class="col-md-6">
-                                        <input type="number" id="cantidad" min="0" max="1000000"
-                                               class="form-control" autocomplete="off" placeholder="0">
+                                        <input type="text" id="cantidad" inputmode="decimal" maxlength="10"
+                                               class="form-control" autocomplete="off" placeholder="0.00"
+                                               onkeydown="return validateInput(event);"
+                                               oninput="validateCantidadInput(this);">
                                     </div>
                                 </div>
                                 <div class="form-group">
@@ -135,8 +137,8 @@
                                 <div class="form-group">
                                     <label>Precio <span style="color:red">*</span></label>
                                     <div class="col-md-3">
-                                    <input type="number" min="0" max="1000000" autocomplete="off"
-                                           class="form-control" id="precio-producto" placeholder="0.00">
+                                        <input type="number" min="0" max="1000000" autocomplete="off"
+                                               class="form-control" id="precio-producto" placeholder="0.00">
                                     </div>
                                 </div>
                             </div>
@@ -202,12 +204,55 @@
         window.seguroBuscador = true;
         window.txtContenedorGlobal = null;
 
+        // ── Constantes de cantidad ────────────────────────────────────────
+        var CANTIDAD_MAXIMA = 1000000;               // máximo permitido por material
+        var REGLA_CANTIDAD  = /^\d+(\.\d{1,2})?$/;   // entero o hasta 2 decimales
+
+        // Redondea a 2 decimales evitando errores de punto flotante
+        function redondear2(n) {
+            return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+        }
+
+        // Deja solo dígitos y un punto, con máximo 2 decimales
+        function sanitizarDecimal(valor) {
+            valor = String(valor).replace(/[^0-9.]/g, '');
+
+            var partes = valor.split('.');
+            if (partes.length > 2) {
+                valor = partes[0] + '.' + partes.slice(1).join('');
+                partes = valor.split('.');
+            }
+            if (partes.length === 2) {
+                valor = partes[0] + '.' + partes[1].substring(0, 2);
+            }
+            return valor;
+        }
+
+        // Validar teclas (permite un solo punto decimal)
+        function validateInput(event) {
+            if (event.ctrlKey || event.metaKey) return true; // copiar / pegar / seleccionar todo
+
+            const key = event.key;
+            if (["Backspace","ArrowLeft","ArrowRight","Delete","Tab","Home","End","Enter"].includes(key)) return true;
+
+            if (key === ".") {
+                return event.target.value.indexOf('.') === -1;
+            }
+
+            if (key === "e" || key === "E" || key === "-" || key === " " || isNaN(Number(key))) return false;
+            return true;
+        }
+
+        // Limpia el input de cantidad y respeta el máximo de 1,000,000
+        function validateCantidadInput(input) {
+            input.value = sanitizarDecimal(input.value);
+            if (Number(input.value) > CANTIDAD_MAXIMA) {
+                input.value = String(CANTIDAD_MAXIMA);
+            }
+        }
+
         $(document).ready(function () {
             $(document).click(function () { $(".droplista").hide(); });
-        });
-
-        document.getElementById('cantidad').addEventListener('keypress', function (e) {
-            if (e.key < '0' || e.key > '9') e.preventDefault();
         });
 
         function abrirModal() {
@@ -223,23 +268,26 @@
             var codigo        = document.getElementById('codigo').value;
             var precio        = document.getElementById('precio-producto').value;
 
-            var reglaEntero   = /^[0-9]\d*$/;
             var reglaDecimal  = /^([0-9]+\.?[0-9]{0,10})$/;
 
             if (repuesto.dataset.info == 0) { toastr.error('Material es requerido'); return; }
             if (cantidad === '')            { toastr.error('Cantidad es requerida'); return; }
-            if (!cantidad.match(reglaEntero)) { toastr.error('Cantidad debe ser entero'); return; }
-            if (cantidad <= 0)              { toastr.error('Cantidad debe ser mayor a 0'); return; }
+            if (!REGLA_CANTIDAD.test(cantidad)) { toastr.error('Cantidad debe ser número válido (máximo 2 decimales) y no negativo'); return; }
+            if (redondear2(cantidad) <= 0)  { toastr.error('Cantidad debe ser mayor a 0'); return; }
+            if (redondear2(cantidad) > CANTIDAD_MAXIMA) { toastr.error('Cantidad máximo 1 millón'); return; }
             if (precio === '')              { toastr.error('Precio es requerido'); return; }
             if (!precio.match(reglaDecimal)){ toastr.error('Precio inválido'); return; }
             if (precio < 0)                 { toastr.error('Precio no puede ser negativo'); return; }
+
+            // Normalizar siempre a 2 decimales
+            var cantidadFormato = redondear2(cantidad).toFixed(2);
 
             var nFilas = $('#matriz > tbody > tr').length + 1;
 
             var markup = `<tr>
                 <td><p id="fila${nFilas}" class="form-control" style="max-width:65px">${nFilas}</p></td>
                 <td><input name="descripcionArray[]" disabled data-info="${repuesto.dataset.info}" value="${nomRepuesto}" class="form-control" type="text"></td>
-                <td><input name="cantidadArray[]" disabled value="${cantidad}" class="form-control" type="number"></td>
+                <td><input name="cantidadArray[]" disabled data-cantidad="${cantidadFormato}" value="${cantidadFormato}" class="form-control" type="text"></td>
                 <td><input name="codigoArray[]" disabled value="${codigo}" class="form-control" type="text"></td>
                 <td><input name="arrayPrecio[]" data-precio="${precio}" disabled value="$${precio}" class="form-control" type="text"></td>
                 <td><button type="button" class="btn btn-danger btn-block" onclick="borrarFila(this)">Borrar</button></td>
@@ -315,9 +363,18 @@
 
         function guardarExtras() {
             var descripcionAtributo = $("input[name='descripcionArray[]']").map(function () { return $(this).attr('data-info'); }).get();
-            var cantidad            = $("input[name='cantidadArray[]']").map(function () { return $(this).val(); }).get();
+            var cantidad            = $("input[name='cantidadArray[]']").map(function () { return $(this).attr('data-cantidad'); }).get();
             var codigo              = $("input[name='codigoArray[]']").map(function () { return $(this).val(); }).get();
             var arrayPrecio         = $("input[name='arrayPrecio[]']").map(function () { return $(this).attr('data-precio'); }).get();
+
+            // Validación final antes de enviar
+            for (var a = 0; a < cantidad.length; a++) {
+                var c = cantidad[a];
+                if (!c || !REGLA_CANTIDAD.test(c) || redondear2(c) <= 0 || redondear2(c) > CANTIDAD_MAXIMA) {
+                    toastr.error('Fila #' + (a + 1) + ' Cantidad inválida (máximo 2 decimales, entre 0.01 y 1,000,000)');
+                    return;
+                }
+            }
 
             const contenedorArray = [];
             for (var i = 0; i < cantidad.length; i++) {

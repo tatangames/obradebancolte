@@ -302,9 +302,12 @@
                         <div class="form-group">
                             <label class="field-label">
                                 Disponible libre: <strong id="modal-disponible-libre"></strong>
+                                <small style="text-transform:none; font-weight:400">(2 decimales máximo)</small>
                             </label>
-                            <input type="number" class="form-control" id="modal-cantidad"
-                                   min="1" placeholder="Cantidad a mover…"
+                            <input type="text" class="form-control" id="modal-cantidad"
+                                   inputmode="decimal" maxlength="10" autocomplete="off"
+                                   placeholder="0.00"
+                                   onkeydown="return validateInput(event);"
                                    oninput="validateCantidadModal(this)">
                         </div>
                     </div>
@@ -735,6 +738,72 @@
     <script>
         var tipoDestino = null;
 
+        // ── Constantes de cantidad ────────────────────────────────────────
+        var CANTIDAD_MAXIMA = 1000000;               // máximo permitido por movimiento
+        var REGLA_DECIMAL   = /^\d+(\.\d{1,2})?$/;   // entero o hasta 2 decimales
+
+        // Redondea a 2 decimales evitando errores de punto flotante
+        function redondear2(n) {
+            return Math.round((Number(n) + Number.EPSILON) * 100) / 100;
+        }
+
+        // Cantidades siempre con 2 decimales y separador de miles (1,250.50)
+        function formatoCantidad(n) {
+            return redondear2(n || 0).toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
+        }
+
+        // Deja solo dígitos y un punto, con máximo 2 decimales
+        function sanitizarDecimal(valor) {
+            valor = String(valor).replace(/[^0-9.]/g, '');
+
+            var partes = valor.split('.');
+            if (partes.length > 2) {
+                valor = partes[0] + '.' + partes.slice(1).join('');
+                partes = valor.split('.');
+            }
+            if (partes.length === 2) {
+                valor = partes[0] + '.' + partes[1].substring(0, 2);
+            }
+            return valor;
+        }
+
+        // Normaliza lo escrito: ".5" → "0.5"  |  "5." → "5"  |  "." → ""
+        function normalizarCantidad(valor) {
+            valor = String(valor ?? '').trim();
+            if (valor === '' || valor === '.') return '';
+            if (valor.charAt(0) === '.') valor = '0' + valor;
+            if (valor.charAt(valor.length - 1) === '.') valor = valor.slice(0, -1);
+            return valor;
+        }
+
+        // Escapa texto para meterlo de forma segura dentro de HTML / atributos
+        function escapeHtml(texto) {
+            return String(texto ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        // Validar teclas numéricas (permite un solo punto decimal)
+        function validateInput(event) {
+            if (event.ctrlKey || event.metaKey) return true; // copiar / pegar / seleccionar todo
+
+            const key = event.key;
+            if (["Backspace","ArrowLeft","ArrowRight","Delete","Tab","Home","End","Enter"].includes(key)) return true;
+
+            if (key === ".") {
+                return event.target.value.indexOf('.') === -1;
+            }
+
+            if (key === "e" || key === "E" || key === "-" || key === " " || isNaN(Number(key))) return false;
+            return true;
+        }
+
         $(document).ready(function () {
             document.getElementById("divcontenedor").style.display = "block";
 
@@ -807,19 +876,27 @@
                     $('#tbodyMateriales').empty();
 
                     $.each(lista, function (i, m) {
-                        var badgeReservado = m.reservado > 0
-                            ? ' <span class="badge-reservado">🔒 ' + m.reservado + ' reservado</span>' : '';
-                        var trClass = m.reservado > 0 ? 'tr-reservado' : '';
-                        var btnSeleccionar = m.libre > 0
+                        var disponible = redondear2(m.disponible);
+                        var reservado  = redondear2(m.reservado);
+                        var libre      = redondear2(m.libre);
+
+                        var badgeReservado = reservado > 0
+                            ? ' <span class="badge-reservado">🔒 ' + formatoCantidad(reservado) + ' reservado</span>' : '';
+                        var trClass = reservado > 0 ? 'tr-reservado' : '';
+
+                        // El nombre va en data-nombre escapado (soporta comillas simples y dobles)
+                        var nombreAttr = escapeHtml(String(m.nombre ?? '').replace(/[\r\n]+/g, ' '));
+
+                        var btnSeleccionar = libre > 0
                             ? "<button class='btn btn-primary btn-xs' " +
                             "data-id='" + m.id_entrada_detalle + "' " +
-                            "data-nombre='" + m.nombre.replace(/'/g, "&#39;").replace(/\n/g, ' ').replace(/\r/g, '') + "' " +
-                            "data-libre='" + m.libre + "' onclick=\"seleccionarMaterial(this)\">" +
+                            "data-nombre='" + nombreAttr + "' " +
+                            "data-libre='" + libre.toFixed(2) + "' onclick=\"seleccionarMaterial(this)\">" +
                             "<i class='fas fa-plus'></i> Seleccionar</button>"
                             : "<span class='badge badge-secondary'>Sin stock libre</span>";
 
-                        var celdaMaterial = m.nombre + badgeReservado +
-                            "<br><small style='color:#888; font-size:10px'>" + (m.medida ?? '—') + "</small>";
+                        var celdaMaterial = escapeHtml(m.nombre) + badgeReservado +
+                            "<br><small style='color:#888; font-size:10px'>" + escapeHtml(m.medida ?? '—') + "</small>";
 
                         // Precio unitario formateado a 4 decimales
                         var precioFmt = '$ ' + parseFloat(m.precio ?? 0).toLocaleString('es-SV', {
@@ -829,13 +906,13 @@
                         $('#tbodyMateriales').append(
                             "<tr class='" + trClass + "' data-fila-material='" + m.id_entrada_detalle + "'>" +
                             "<td>" + (i + 1) + "</td>" +
-                            "<td>" + (m.objespec ?? '—') + "</td>" +
+                            "<td>" + escapeHtml(m.objespec ?? '—') + "</td>" +
                             "<td>" + celdaMaterial + "</td>" +
-                            "<td>" + (m.medida ?? '—') + "</td>" +
+                            "<td>" + escapeHtml(m.medida ?? '—') + "</td>" +
                             "<td style='text-align:right'>" + precioFmt + "</td>" +
-                            "<td>" + m.disponible + "</td>" +
-                            "<td>" + m.reservado + "</td>" +
-                            "<td><strong>" + m.libre + "</strong></td>" +
+                            "<td>" + formatoCantidad(disponible) + "</td>" +
+                            "<td>" + formatoCantidad(reservado) + "</td>" +
+                            "<td><strong>" + formatoCantidad(libre) + "</strong></td>" +
                             "<td>" + btnSeleccionar + "</td></tr>"
                         );
                     });
@@ -850,7 +927,7 @@
         }
 
         function seleccionarMaterial(btn) {
-            var id = $(btn).data('id');
+            var id = $(btn).attr('data-id');
 
             // ── Bloqueo: no permitir volver a elegir un material ya agregado al Paso 4 ──
             if (materialYaAgregado(id)) {
@@ -858,7 +935,8 @@
                 return;
             }
 
-            abrirModalCantidad(id, $(btn).data('nombre'), parseInt($(btn).data('libre')));
+            // parseFloat (antes parseInt): con parseInt un libre de 12.75 se truncaba a 12
+            abrirModalCantidad(id, $(btn).attr('data-nombre'), redondear2($(btn).attr('data-libre')));
         }
 
         // Verifica si un id_entrada_detalle ya existe en la tabla de detalle (Paso 4)
@@ -971,27 +1049,37 @@
             if (libre <= 0)   { toastr.info('Sin stock libre disponible'); return; }
             $('#modal-id-entrada-detalle').val(idEntradaDetalle);
             $('#modal-nombre-material').val(nombre);
-            $('#modal-max').val(libre);
-            $('#modal-disponible-libre').text(libre);
+            $('#modal-max').val(libre.toFixed(2));
+            $('#modal-disponible-libre').text(formatoCantidad(libre));
             $('#modal-cantidad').val('');
             $('#modalCantidad').modal('show');
         }
 
+        // Cantidad a mover: decimales (máx. 2), tope = min(stock libre, 1,000,000)
         function validateCantidadModal(input) {
-            var max = parseInt($('#modal-max').val());
-            input.value = input.value.replace(/[^0-9]/g, '');
-            if (parseInt(input.value) > max) input.value = max;
-            if (parseInt(input.value) < 0)   input.value = '';
+            input.value = sanitizarDecimal(input.value);
+
+            var limite = Math.min(redondear2($('#modal-max').val()), CANTIDAD_MAXIMA);
+            if (Number(input.value) > limite) {
+                input.value = String(redondear2(limite));
+            }
         }
 
         function agregarAlDetalle() {
             var idEntradaDetalle = $('#modal-id-entrada-detalle').val();
             var nombre           = $('#modal-nombre-material').val();
-            var cantidad         = parseInt($('#modal-cantidad').val());
-            var max              = parseInt($('#modal-max').val());
+            var cantidadTxt      = normalizarCantidad($('#modal-cantidad').val());
+            var max              = redondear2($('#modal-max').val());
 
-            if (!cantidad || cantidad <= 0) { toastr.error('Ingrese una cantidad válida'); return; }
-            if (cantidad > max)             { toastr.error('Supera el stock libre');        return; }
+            if (cantidadTxt === '' || !REGLA_DECIMAL.test(cantidadTxt)) {
+                toastr.error('Ingrese una cantidad válida (máximo 2 decimales)'); return;
+            }
+
+            var cantidad = redondear2(cantidadTxt);
+
+            if (cantidad <= 0)               { toastr.error('La cantidad debe ser mayor a cero');   return; }
+            if (cantidad > CANTIDAD_MAXIMA)  { toastr.error('Cantidad máximo 1,000,000.00');        return; }
+            if (cantidad > max)              { toastr.error('Supera el stock libre');               return; }
 
             // ── Bloqueo de respaldo: por si el modal quedó abierto y el material
             //    ya fue agregado por otra vía mientras tanto ──
@@ -1000,6 +1088,8 @@
                 $('#modalCantidad').modal('hide');
                 return;
             }
+
+            var cantidadFmt = cantidad.toFixed(2); // siempre 2 decimales
 
             var labelDestino = '';
             if (tipoDestino === 'proyecto') labelDestino = '<span class="badge badge-success">Proyecto</span>';
@@ -1011,8 +1101,8 @@
                 "<tr>" +
                 "<td><span style='display:block; text-align:center'>" + nFilas + "</span></td>" +
                 "<td><input name='idmaterialArray[]' type='hidden' data-idmaterialArray='" + idEntradaDetalle + "'>" +
-                "<input disabled value='" + nombre.replace(/'/g, "&#39;") + "' class='form-control form-control-sm' type='text'></td>" +
-                "<td><input name='salidaArray[]' disabled data-cantidadSalida='" + cantidad + "' value='" + cantidad + "' class='form-control form-control-sm' type='text'></td>" +
+                "<input disabled value='" + escapeHtml(nombre) + "' class='form-control form-control-sm' type='text'></td>" +
+                "<td><input name='salidaArray[]' disabled data-cantidadSalida='" + cantidadFmt + "' value='" + cantidadFmt + "' class='form-control form-control-sm' type='text'></td>" +
                 "<td>" + labelDestino + "</td>" +
                 "<td><button type='button' class='btn btn-danger btn-block btn-sm' onclick='borrarFila(this)'>Borrar</button></td>" +
                 "</tr>"
@@ -1142,7 +1232,7 @@
                 Swal.fire({
                     title: '¿Confirmar reserva?',
                     text:  '¿Reservar estos materiales? Quedarán bloqueados hasta su despacho.',
-                    type: 'question', showCancelButton: true,
+                    icon: 'question', showCancelButton: true,
                     confirmButtonColor: '#6f42c1', cancelButtonColor: '#d33',
                     cancelButtonText: 'Cancelar', confirmButtonText: 'Sí, reservar'
                 }).then((result) => { if (result.isConfirmed) ejecutarGuardar('guardar'); });
@@ -1201,6 +1291,15 @@
             var idEntradaDetalle = $("input[name='idmaterialArray[]']").map(function () { return $(this).attr("data-idmaterialArray"); }).get();
             var salidaCantidad   = $("input[name='salidaArray[]']").map(function () { return $(this).attr("data-cantidadSalida"); }).get();
 
+            // Validación final antes de enviar
+            for (var a = 0; a < salidaCantidad.length; a++) {
+                var ic = salidaCantidad[a];
+                if (!ic || !REGLA_DECIMAL.test(ic) || redondear2(ic) <= 0 || redondear2(ic) > CANTIDAD_MAXIMA) {
+                    toastr.error('Fila #' + (a + 1) + ' — Cantidad inválida (máximo 2 decimales, entre 0.01 y 1,000,000)');
+                    return;
+                }
+            }
+
             var contenedorArray = [];
             for (var p = 0; p < salidaCantidad.length; p++) {
                 contenedorArray.push({ infoIdEntradaDeta: idEntradaDetalle[p], infoCantidad: salidaCantidad[p] });
@@ -1226,15 +1325,15 @@
                         } else if (response.data.success === 3) {
                             Swal.fire({
                                 title: 'Cantidad no disponible',
-                                html: '<b>' + response.data.nombre_material + '</b><br><br>' +
+                                html: '<b>' + escapeHtml(response.data.nombre_material) + '</b><br><br>' +
                                     'Solicitado: <b>' + response.data.cantidad_pedida + '</b><br>' +
                                     'Disponible libre: <b>' + response.data.disponible + '</b>',
-                                type: 'warning', confirmButtonColor: '#d33', confirmButtonText: 'Entendido'
+                                icon: 'warning', confirmButtonColor: '#d33', confirmButtonText: 'Entendido'
                             });
                         } else if (response.data.success === 10) {
                             Swal.fire({
                                 title: 'Materiales Reservados',
-                                type: 'success',
+                                icon: 'success',
                                 allowOutsideClick: false,
                                 confirmButtonColor: '#6f42c1',
                                 confirmButtonText: 'Aceptar'
@@ -1276,10 +1375,10 @@
                     } else if (response.data.success === 3) {
                         Swal.fire({
                             title: 'Cantidad no disponible',
-                            html: '<b>' + response.data.nombre_material + '</b><br><br>' +
+                            html: '<b>' + escapeHtml(response.data.nombre_material) + '</b><br><br>' +
                                 'Solicitado: <b>' + response.data.cantidad_pedida + '</b><br>' +
                                 'Disponible libre: <b>' + response.data.disponible + '</b>',
-                            type: 'warning',
+                            icon: 'warning',
                             confirmButtonColor: '#d33',
                             confirmButtonText: 'Entendido'
                         });
@@ -1288,7 +1387,7 @@
                         Swal.fire({
                             title: 'Proyecto destino no válido',
                             text: 'El proyecto destino está cerrado o no existe. Selecciona un proyecto activo.',
-                            type: 'error',
+                            icon: 'error',
                             confirmButtonColor: '#d33',
                             confirmButtonText: 'Entendido'
                         });
@@ -1297,7 +1396,7 @@
                         Swal.fire({
                             title: 'Proyecto origen no válido',
                             text: 'El proyecto origen no está cerrado. Esta operación solo aplica a proyectos cerrados.',
-                            type: 'error',
+                            icon: 'error',
                             confirmButtonColor: '#d33',
                             confirmButtonText: 'Entendido'
                         });
@@ -1307,7 +1406,7 @@
                             title: 'Fecha no válida',
                             html: 'La fecha de la transferencia no puede ser anterior al cierre del proyecto.<br><br>' +
                                 'Fecha de cierre: <b>' + response.data.fecha_cierre + '</b>',
-                            type: 'error',
+                            icon: 'error',
                             confirmButtonColor: '#d33',
                             confirmButtonText: 'Entendido'
                         });
@@ -1319,7 +1418,7 @@
                         };
                         Swal.fire({
                             title: titulos[tipoDestino] || 'Guardado',
-                            type: 'success',
+                            icon: 'success',
                             allowOutsideClick: false,
                             confirmButtonColor: '#28a745',
                             confirmButtonText: 'Aceptar'
@@ -1329,7 +1428,7 @@
                         Swal.fire({
                             title: 'Error inesperado',
                             text: 'Ocurrió un error al procesar la operación. Contacta al administrador.',
-                            type: 'error',
+                            icon: 'error',
                             confirmButtonColor: '#d33',
                             confirmButtonText: 'Entendido'
                         });
